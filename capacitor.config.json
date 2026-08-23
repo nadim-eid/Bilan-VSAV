@@ -1,1 +1,7 @@
-{"appId":"fr.bilanvsav.app","appName":"Bilan VSAV","webDir":"dist","bundledWebRuntime":false}
+{
+  "appId": "fr.bilanvsav.app",
+  "appName": "Bilan VSAV",
+  "webDir": "dist",
+  "bundledWebRuntime": false
+}
+
