@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { ChevronLeft, ChevronRight, Play, Square, Save, RotateCcw, Check, History, X, Trash2, Mic, Flashlight, FlashlightOff } from 'lucide-react';
 import { Capacitor } from '@capacitor/core';
