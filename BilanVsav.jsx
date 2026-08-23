@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import { ChevronLeft, ChevronRight, Play, Square, Save, RotateCcw, Check, History, X, Trash2, Mic, Flashlight, FlashlightOff } from 'lucide-react';
 import { Capacitor } from '@capacitor/core';
@@ -270,9 +271,20 @@ function useDictation(onResult) {
   const native = Capacitor.isNativePlatform();
 
   const extractText = (data) => {
+    if (!data) return '';
     if (data.matches && data.matches[0]) return data.matches[0];
     if (data.value) return Array.isArray(data.value) ? data.value[0] : data.value;
     return '';
+  };
+
+  const finish = (text) => {
+    activeRef.current = false;
+    setListening(false);
+    if (listenerRef.current) {
+      listenerRef.current.remove();
+      listenerRef.current = null;
+    }
+    if (text && text.trim()) onResult(text.trim());
   };
 
   const start = async () => {
@@ -284,49 +296,48 @@ function useDictation(onResult) {
     activeRef.current = true;
     setError('');
     setListening(true);
+    latestRef.current = '';
     try {
       const perm = await SpeechRecognition.requestPermissions();
       if (perm.speechRecognition && perm.speechRecognition !== 'granted') {
         setError("Micro refusé — autorise-le dans les réglages de l'app (Android : Paramètres > Applications > Bilan VSAV > Autorisations).");
-        activeRef.current = false;
-        setListening(false);
+        finish('');
         return;
       }
-      latestRef.current = '';
+      if (!activeRef.current) {
+        finish(''); // relâché pendant la demande de permission
+        return;
+      }
       listenerRef.current = await SpeechRecognition.addListener('partialResults', (data) => {
         const text = extractText(data);
         if (text) latestRef.current = text;
       });
       if (!activeRef.current) {
-        // Le bouton a déjà été relâché pendant la demande de permission : on annule proprement.
-        if (listenerRef.current) {
-          listenerRef.current.remove();
-          listenerRef.current = null;
-        }
+        finish('');
         return;
       }
-      await SpeechRecognition.start({ language: 'fr-FR', popup: false, partialResults: true });
+      // Cette promesse se résout quand l'écoute se termine (appel à stop() ou silence) et porte le texte final.
+      const result = await SpeechRecognition.start({ language: 'fr-FR', popup: false, partialResults: true });
+      finish(extractText(result) || latestRef.current);
     } catch (e) {
-      activeRef.current = false;
-      setListening(false);
       setError(e.message || 'Erreur au démarrage');
+      finish(latestRef.current);
     }
   };
 
   const stop = async () => {
     if (!activeRef.current) return;
-    activeRef.current = false;
-    setListening(false);
     try {
       await SpeechRecognition.stop();
+      // La résolution de start() ci-dessus se charge normalement du nettoyage + du texte final.
     } catch (e) {
-      // ignore
+      finish(latestRef.current);
+      return;
     }
-    if (listenerRef.current) {
-      listenerRef.current.remove();
-      listenerRef.current = null;
-    }
-    if (latestRef.current.trim()) onResult(latestRef.current.trim());
+    // Filet de sécurité : si start() ne s'est toujours pas résolu après 2s, on force la fin.
+    setTimeout(() => {
+      if (activeRef.current) finish(latestRef.current);
+    }, 2000);
   };
 
   return { listening, supported: true, error, start, stop };
