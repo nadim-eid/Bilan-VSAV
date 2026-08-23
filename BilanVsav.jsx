@@ -266,34 +266,57 @@ function useDictation(onResult) {
   const [error, setError] = useState('');
   const latestRef = useRef('');
   const listenerRef = useRef(null);
+  const activeRef = useRef(false); // vérité synchrone (l'état React arrive trop tard sur un appui court)
   const native = Capacitor.isNativePlatform();
+
+  const extractText = (data) => {
+    if (data.matches && data.matches[0]) return data.matches[0];
+    if (data.value) return Array.isArray(data.value) ? data.value[0] : data.value;
+    return '';
+  };
 
   const start = async () => {
     if (!native) {
       setError("Dictée disponible uniquement dans l'app installée (pas dans le navigateur).");
       return;
     }
-    if (listening) return; // évite un double démarrage (tactile + souris)
+    if (activeRef.current) return; // évite un double démarrage (tactile + souris)
+    activeRef.current = true;
     setError('');
+    setListening(true);
     try {
       const perm = await SpeechRecognition.requestPermissions();
       if (perm.speechRecognition && perm.speechRecognition !== 'granted') {
         setError("Micro refusé — autorise-le dans les réglages de l'app (Android : Paramètres > Applications > Bilan VSAV > Autorisations).");
+        activeRef.current = false;
+        setListening(false);
         return;
       }
       latestRef.current = '';
       listenerRef.current = await SpeechRecognition.addListener('partialResults', (data) => {
-        if (data.matches && data.matches[0]) latestRef.current = data.matches[0];
+        const text = extractText(data);
+        if (text) latestRef.current = text;
       });
+      if (!activeRef.current) {
+        // Le bouton a déjà été relâché pendant la demande de permission : on annule proprement.
+        if (listenerRef.current) {
+          listenerRef.current.remove();
+          listenerRef.current = null;
+        }
+        return;
+      }
       await SpeechRecognition.start({ language: 'fr-FR', popup: false, partialResults: true });
-      setListening(true);
     } catch (e) {
+      activeRef.current = false;
+      setListening(false);
       setError(e.message || 'Erreur au démarrage');
     }
   };
 
   const stop = async () => {
-    if (!listening) return;
+    if (!activeRef.current) return;
+    activeRef.current = false;
+    setListening(false);
     try {
       await SpeechRecognition.stop();
     } catch (e) {
@@ -303,7 +326,6 @@ function useDictation(onResult) {
       listenerRef.current.remove();
       listenerRef.current = null;
     }
-    setListening(false);
     if (latestRef.current.trim()) onResult(latestRef.current.trim());
   };
 
