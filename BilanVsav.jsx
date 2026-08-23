@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { ChevronLeft, ChevronRight, Play, Square, Save, RotateCcw, Check, History, X, Trash2, Mic, Flashlight, FlashlightOff } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Play, Square, Save, RotateCcw, Check, History, X, Trash2, Flashlight, FlashlightOff } from 'lucide-react';
 import { Capacitor } from '@capacitor/core';
-import { SpeechRecognition } from '@capacitor-community/speech-recognition';
 import { Torch } from '@capawesome/capacitor-torch';
 
 const ACCENT = '#D6362A';
@@ -189,8 +188,10 @@ const initialForm = () => ({
   B: { fr: '', fr_signes: [], spo2: '', spo2_mode: '' },
   C: {
     fc: '',
-    pa_gauche: '',
-    pa_droite: '',
+    pa_gauche_sys: '',
+    pa_gauche_dia: '',
+    pa_droite_sys: '',
+    pa_droite_dia: '',
     pouls_sym: '',
     pouls_frappe: '',
     trc: '',
@@ -260,88 +261,6 @@ function useCountdown(initialSeconds) {
   return { remaining, running, done, start, reset };
 }
 
-// Dictée vocale (plugin natif) : maintenir le bouton enfoncé = écoute (relâcher = arrêt)
-function useDictation(onResult) {
-  const [listening, setListening] = useState(false);
-  const [error, setError] = useState('');
-  const latestRef = useRef('');
-  const listenerRef = useRef(null);
-  const activeRef = useRef(false); // vérité synchrone (l'état React arrive trop tard sur un appui court)
-  const native = Capacitor.isNativePlatform();
-
-  const extractText = (data) => {
-    if (!data) return '';
-    if (data.matches && data.matches[0]) return data.matches[0];
-    if (data.value) return Array.isArray(data.value) ? data.value[0] : data.value;
-    return '';
-  };
-
-  const finish = (text) => {
-    activeRef.current = false;
-    setListening(false);
-    if (listenerRef.current) {
-      listenerRef.current.remove();
-      listenerRef.current = null;
-    }
-    if (text && text.trim()) onResult(text.trim());
-  };
-
-  const start = async () => {
-    if (!native) {
-      setError("Dictée disponible uniquement dans l'app installée (pas dans le navigateur).");
-      return;
-    }
-    if (activeRef.current) return; // évite un double démarrage (tactile + souris)
-    activeRef.current = true;
-    setError('');
-    setListening(true);
-    latestRef.current = '';
-    try {
-      const perm = await SpeechRecognition.requestPermissions();
-      if (perm.speechRecognition && perm.speechRecognition !== 'granted') {
-        setError("Micro refusé — autorise-le dans les réglages de l'app (Android : Paramètres > Applications > Bilan VSAV > Autorisations).");
-        finish('');
-        return;
-      }
-      if (!activeRef.current) {
-        finish(''); // relâché pendant la demande de permission
-        return;
-      }
-      listenerRef.current = await SpeechRecognition.addListener('partialResults', (data) => {
-        const text = extractText(data);
-        if (text) latestRef.current = text;
-      });
-      if (!activeRef.current) {
-        finish('');
-        return;
-      }
-      // Cette promesse se résout quand l'écoute se termine (appel à stop() ou silence) et porte le texte final.
-      const result = await SpeechRecognition.start({ language: 'fr-FR', popup: false, partialResults: true });
-      finish(extractText(result) || latestRef.current);
-    } catch (e) {
-      setError(e.message || 'Erreur au démarrage');
-      finish(latestRef.current);
-    }
-  };
-
-  const stop = async () => {
-    if (!activeRef.current) return;
-    try {
-      await SpeechRecognition.stop();
-      // La résolution de start() ci-dessus se charge normalement du nettoyage + du texte final.
-    } catch (e) {
-      finish(latestRef.current);
-      return;
-    }
-    // Filet de sécurité : si start() ne s'est toujours pas résolu après 2s, on force la fin.
-    setTimeout(() => {
-      if (activeRef.current) finish(latestRef.current);
-    }, 2000);
-  };
-
-  return { listening, supported: true, error, start, stop };
-}
-
 // Torche du téléphone (plugin natif — permission normale, pas de popup nécessaire)
 function useTorch() {
   const [on, setOn] = useState(false);
@@ -367,40 +286,6 @@ function useTorch() {
   };
 
   return { on, error, toggle };
-}
-
-function DictationButton({ onResult }) {
-  const dictation = useDictation(onResult);
-  if (!dictation.supported) {
-    return (
-      <span className="text-xs text-neutral-600 italic">
-        Dictée vocale non supportée par ce navigateur
-      </span>
-    );
-  }
-  return (
-    <div className="flex flex-col items-end gap-1">
-      <button
-        onPointerDown={(e) => {
-          e.preventDefault();
-          dictation.start();
-        }}
-        onPointerUp={dictation.stop}
-        onPointerLeave={dictation.stop}
-        onPointerCancel={dictation.stop}
-        className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide px-3 py-1.5 rounded shrink-0 select-none"
-        style={{
-          backgroundColor: dictation.listening ? '#DC2626' : '#2C3136',
-          color: '#fff',
-          touchAction: 'none',
-        }}
-      >
-        <Mic size={13} className={dictation.listening ? 'animate-pulse' : ''} />
-        {dictation.listening ? 'Écoute…' : 'Maintenir pour dicter'}
-      </button>
-      {dictation.error && <span className="text-xs text-red-400 text-right">{dictation.error}</span>}
-    </div>
-  );
 }
 
 function TimerBox({ timer }) {
@@ -492,14 +377,16 @@ function MultiToggleGroup({ value, onChange, options }) {
   );
 }
 
-function InputBox({ value, onChange, unit, placeholder }) {
+function InputBox({ value, onChange, unit, placeholder, numeric, width }) {
+  const inputMode = numeric === 'decimal' ? 'decimal' : numeric ? 'numeric' : 'text';
   return (
     <div className="flex items-center gap-2">
       <input
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder || 'valeur'}
-        className="w-28 bg-neutral-950 border border-neutral-800 rounded-md px-3 py-2 text-lg text-neutral-100 focus:outline-none focus:border-neutral-500"
+        inputMode={inputMode}
+        className={`${width || 'w-28'} bg-neutral-950 border border-neutral-800 rounded-md px-3 py-2 text-lg text-neutral-100 focus:outline-none focus:border-neutral-500`}
         style={{ fontFamily: "'IBM Plex Mono', monospace" }}
       />
       {unit && <span className="text-neutral-500 text-sm">{unit}</span>}
@@ -544,7 +431,7 @@ function TorchButton() {
 function SamplerField({ letter, label, value, onChange }) {
   return (
     <div className="bg-neutral-900 border border-neutral-800 rounded-lg p-4 flex flex-col gap-2">
-      <div className="flex items-center gap-2 flex-wrap">
+      <div className="flex items-center gap-2">
         <span
           className="w-7 h-7 rounded flex items-center justify-center text-white text-sm font-bold shrink-0"
           style={{ backgroundColor: ACCENT, fontFamily: "'Barlow Condensed', sans-serif" }}
@@ -553,18 +440,15 @@ function SamplerField({ letter, label, value, onChange }) {
         </span>
         <span className="text-sm font-semibold text-neutral-200 uppercase tracking-wide">{label}</span>
         <span
-          className="w-1.5 h-1.5 rounded-full shrink-0"
+          className="w-1.5 h-1.5 rounded-full ml-auto shrink-0"
           style={{ backgroundColor: value ? EMERALD : '#404040' }}
         />
-        <div className="ml-auto">
-          <DictationButton onResult={(t) => onChange(value ? `${value} ${t}` : t)} />
-        </div>
       </div>
       <textarea
         value={value}
         onChange={(e) => onChange(e.target.value)}
         rows={2}
-        placeholder="Texte libre ou dictée vocale…"
+        placeholder="Texte libre…"
         className="w-full bg-neutral-950 border border-neutral-800 rounded-md px-3 py-2 text-sm text-neutral-100 focus:outline-none focus:border-neutral-500 resize-none"
         style={{ fontFamily: "'Inter', sans-serif" }}
       />
@@ -572,11 +456,25 @@ function SamplerField({ letter, label, value, onChange }) {
   );
 }
 
+function getRawValue(page, field, data) {
+  if (page === 'C' && field === 'pa_gauche') {
+    const { pa_gauche_sys: sys, pa_gauche_dia: dia } = data.C;
+    if (!sys && !dia) return '';
+    return `${sys || '?'}/${dia || '?'}`;
+  }
+  if (page === 'C' && field === 'pa_droite') {
+    const { pa_droite_sys: sys, pa_droite_dia: dia } = data.C;
+    if (!sys && !dia) return '';
+    return `${sys || '?'}/${dia || '?'}`;
+  }
+  return data[page][field];
+}
+
 function RecapView({ data }) {
   const sections = ['B', 'C', 'D', 'E', 'FAST', 'SAMPLER']
     .map((page) => {
       const rows = PAGE_FIELDS[page]
-        .map((f) => ({ f, v: formatValue(f, data[page][f]) }))
+        .map((f) => ({ f, v: formatValue(f, getRawValue(page, f, data)) }))
         .filter((r) => r.v !== null);
       return { page, rows };
     })
@@ -752,7 +650,7 @@ export default function BilanVsav() {
           <FieldCard label="Fréquence respiratoire" filled={!!form.B.fr}>
             <div className="flex flex-col gap-2 items-stretch sm:flex-row sm:items-center">
               <TimerBox timer={frTimer} />
-              <InputBox value={form.B.fr} onChange={(v) => updateField('B', 'fr', v)} unit="/min" />
+              <InputBox value={form.B.fr} onChange={(v) => updateField('B', 'fr', v)} unit="/min" numeric />
             </div>
           </FieldCard>
           <FieldCard label="Signes associés" filled={form.B.fr_signes.length > 0}>
@@ -764,7 +662,7 @@ export default function BilanVsav() {
           </FieldCard>
           <FieldCard label="SpO2 (SAT)" filled={!!form.B.spo2}>
             <div className="flex flex-wrap items-center gap-3">
-              <InputBox value={form.B.spo2} onChange={(v) => updateField('B', 'spo2', v)} unit="%" />
+              <InputBox value={form.B.spo2} onChange={(v) => updateField('B', 'spo2', v)} unit="%" numeric />
               <ToggleGroup
                 value={form.B.spo2_mode}
                 onChange={(v) => updateField('B', 'spo2_mode', v)}
@@ -780,24 +678,66 @@ export default function BilanVsav() {
           <FieldCard label="Fréquence cardiaque" filled={!!form.C.fc}>
             <div className="flex flex-col gap-2 items-stretch sm:flex-row sm:items-center">
               <TimerBox timer={fcTimer} />
-              <InputBox value={form.C.fc} onChange={(v) => updateField('C', 'fc', v)} unit="/min" />
+              <InputBox value={form.C.fc} onChange={(v) => updateField('C', 'fc', v)} unit="/min" numeric />
             </div>
           </FieldCard>
-          <FieldCard label="Pression artérielle bras gauche" filled={!!form.C.pa_gauche}>
-            <InputBox
-              value={form.C.pa_gauche}
-              onChange={(v) => updateField('C', 'pa_gauche', v)}
-              unit="mmHg"
-              placeholder="ex. 120/80"
-            />
+          <FieldCard
+            label="Pression artérielle bras gauche"
+            filled={!!form.C.pa_gauche_sys || !!form.C.pa_gauche_dia}
+          >
+            <div className="flex items-center gap-2 flex-wrap">
+              <div className="flex flex-col gap-1">
+                <span className="text-xs text-neutral-500">Systolique</span>
+                <InputBox
+                  value={form.C.pa_gauche_sys}
+                  onChange={(v) => updateField('C', 'pa_gauche_sys', v)}
+                  placeholder="120"
+                  numeric
+                  width="w-20"
+                />
+              </div>
+              <span className="text-neutral-600 text-lg mt-4">/</span>
+              <div className="flex flex-col gap-1">
+                <span className="text-xs text-neutral-500">Diastolique</span>
+                <InputBox
+                  value={form.C.pa_gauche_dia}
+                  onChange={(v) => updateField('C', 'pa_gauche_dia', v)}
+                  unit="mmHg"
+                  placeholder="80"
+                  numeric
+                  width="w-20"
+                />
+              </div>
+            </div>
           </FieldCard>
-          <FieldCard label="Pression artérielle bras droit" filled={!!form.C.pa_droite}>
-            <InputBox
-              value={form.C.pa_droite}
-              onChange={(v) => updateField('C', 'pa_droite', v)}
-              unit="mmHg"
-              placeholder="ex. 120/80"
-            />
+          <FieldCard
+            label="Pression artérielle bras droit"
+            filled={!!form.C.pa_droite_sys || !!form.C.pa_droite_dia}
+          >
+            <div className="flex items-center gap-2 flex-wrap">
+              <div className="flex flex-col gap-1">
+                <span className="text-xs text-neutral-500">Systolique</span>
+                <InputBox
+                  value={form.C.pa_droite_sys}
+                  onChange={(v) => updateField('C', 'pa_droite_sys', v)}
+                  placeholder="120"
+                  numeric
+                  width="w-20"
+                />
+              </div>
+              <span className="text-neutral-600 text-lg mt-4">/</span>
+              <div className="flex flex-col gap-1">
+                <span className="text-xs text-neutral-500">Diastolique</span>
+                <InputBox
+                  value={form.C.pa_droite_dia}
+                  onChange={(v) => updateField('C', 'pa_droite_dia', v)}
+                  unit="mmHg"
+                  placeholder="80"
+                  numeric
+                  width="w-20"
+                />
+              </div>
+            </div>
           </FieldCard>
           <FieldCard label="Pouls symétrique" filled={!!form.C.pouls_sym}>
             <ToggleGroup
@@ -874,6 +814,7 @@ export default function BilanVsav() {
                   value={form.D.pc_nombre}
                   onChange={(v) => updateField('D', 'pc_nombre', v)}
                   placeholder="ex. 2"
+                  numeric
                 />
               </div>
             </div>
@@ -921,6 +862,7 @@ export default function BilanVsav() {
               value={form.D.glycemie}
               onChange={(v) => updateField('D', 'glycemie', v)}
               unit="g/L"
+              numeric="decimal"
             />
           </FieldCard>
         </>
@@ -933,6 +875,7 @@ export default function BilanVsav() {
               value={form.E.temperature}
               onChange={(v) => updateField('E', 'temperature', v)}
               unit="°C"
+              numeric="decimal"
             />
           </FieldCard>
           <FieldCard label="Victime retrouvée au" filled={!!form.E.victime_env}>
