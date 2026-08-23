@@ -154,6 +154,14 @@ const CIRC_SIGNS = [
   { value: 'vertiges', label: 'Vertiges / malaise' },
 ];
 
+const NEURO_SIGNS = [
+  { value: 'troubles_visuels', label: 'Troubles visuels' },
+  { value: 'troubles_sensitifs', label: 'Troubles sensitifs' },
+  { value: 'fourmillements', label: 'Fourmillements' },
+  { value: 'trouble_equilibre', label: "Trouble de l'équilibre" },
+  { value: 'convulsions', label: 'Convulsions' },
+];
+
 const HEMORRAGIE_SITES = [
   { value: 'abdominal', label: 'Abdominal' },
   { value: 'femoral', label: 'Fémoral' },
@@ -195,6 +203,7 @@ const FIELD_LABELS = {
   pc_nombre: 'Nombre de fois',
   etat: 'État de conscience',
   orientation: 'Orientation temps-espace',
+  neuro_signes: 'Signes associés',
   pupilles: 'Pupilles sym., taille normale, réactives',
   sens_mains: 'Sensibilité / motricité mains',
   sens_pieds: 'Sensibilité / motricité pieds',
@@ -227,7 +236,7 @@ const PAGE_FIELDS = {
   A: ['obstruction', 'victime_trauma', 'pls', 'protection_cervicale'],
   B: ['fr', 'fr_signes', 'spo2', 'spo2_mode'],
   C: ['fc', 'pa_gauche', 'pa_droite', 'pouls_sym', 'pouls_frappe', 'trc', 'signes', 'hemorragie', 'hemorragie_sites'],
-  D: ['pci', 'pc_repete', 'pc_nombre', 'etat', 'orientation', 'pupilles', 'sens_mains', 'sens_pieds', 'eva', 'douleur_loc', 'glycemie'],
+  D: ['pci', 'pc_repete', 'pc_nombre', 'etat', 'orientation', 'neuro_signes', 'pupilles', 'sens_mains', 'sens_pieds', 'eva', 'douleur_loc', 'glycemie'],
   E: ['temperature', 'victime_env', 'lesion'],
   BRULURE: ['brulure', 'brulure_degre', 'brulure_type', 'brulure_zones', 'brulure_etendue', 'brulure_loc'],
   FAST: ['face', 'arm', 'speech', 'temps'],
@@ -272,6 +281,7 @@ const VALUE_LABELS = {
     U: 'U — Inconscient',
   },
   orientation: optsToLabels(OUI_NON),
+  neuro_signes: optsToLabels(NEURO_SIGNS),
   pupilles: optsToLabels(OUI_NON),
   sens_mains: optsToLabels(OUI_NON),
   sens_pieds: optsToLabels(OUI_NON),
@@ -282,9 +292,15 @@ const VALUE_LABELS = {
   speech: optsToLabels(OUI_NON),
 };
 
+// Ces trois champs "signes associés" affichent toujours une ligne dans le récap,
+// même vides — l'absence de signe est une information en soi.
+const SIGNES_FIELDS_ALWAYS_SHOWN = ['fr_signes', 'signes', 'neuro_signes'];
+
 function formatValue(field, value) {
   if (Array.isArray(value)) {
-    if (value.length === 0) return null;
+    if (value.length === 0) {
+      return SIGNES_FIELDS_ALWAYS_SHOWN.includes(field) ? 'Pas de signes associés' : null;
+    }
     return value.map((v) => (VALUE_LABELS[field] && VALUE_LABELS[field][v]) || v).join(', ');
   }
   if (value === '' || value === undefined || value === null) return null;
@@ -317,6 +333,7 @@ const initialForm = () => ({
     pc_nombre: '',
     etat: '',
     orientation: '',
+    neuro_signes: [],
     pupilles: '',
     sens_mains: '',
     sens_pieds: '',
@@ -1404,6 +1421,22 @@ export default function BilanVsav() {
                 }
               }}
               options={OUI_NON}
+            />
+          </FieldCard>
+          <FieldCard label="Signes associés" filled={form.D.neuro_signes.length > 0}>
+            <MultiToggleGroup
+              value={form.D.neuro_signes}
+              onChange={(v) => {
+                if (v.length > 0 && form.D.neuro_signes.length === 0) {
+                  pushCat(
+                    'neuro_signes',
+                    'Signes neurologiques associés',
+                    'Surveillance neurologique rapprochée, position latérale de sécurité si besoin, alerter le 15.'
+                  );
+                }
+                updateField('D', 'neuro_signes', v);
+              }}
+              options={NEURO_SIGNS}
             />
           </FieldCard>
           <FieldCard label="Pupilles sym., taille normale, réactives" filled={!!form.D.pupilles}>
