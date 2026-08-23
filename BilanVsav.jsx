@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { ChevronLeft, ChevronRight, Play, Square, Save, RotateCcw, Check, History, X } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Play, Square, Save, RotateCcw, Check, History, X, Trash2 } from 'lucide-react';
 
 const ACCENT = '#D6362A';
 
@@ -14,6 +14,10 @@ const storage = {
   async set(key, value) {
     localStorage.setItem(key, value);
     return { key };
+  },
+  async delete(key) {
+    localStorage.removeItem(key);
+    return { key, deleted: true };
   },
 };
 const AMBER = '#F2A73B';
@@ -546,6 +550,23 @@ export default function BilanVsav() {
     setPatientNum((n) => n + 1);
   }
 
+  async function clearHistory() {
+    if (history.length === 0) return;
+    const ok = window.confirm(
+      "Effacer tout l'historique des bilans ? Cette action est irréversible."
+    );
+    if (!ok) return;
+    try {
+      for (const rec of history) {
+        await storage.delete(`bilan:${rec.id}`);
+      }
+      setHistory([]);
+      setViewing(null);
+    } catch (e) {
+      console.error("Erreur lors de l'effacement de l'historique", e);
+    }
+  }
+
   function renderStepContent() {
     const s = STEPS[step];
     if (s === 'B')
@@ -665,24 +686,19 @@ export default function BilanVsav() {
             <div className="flex flex-col gap-3 items-stretch">
               <ToggleGroup
                 value={form.D.pc_repete}
-                onChange={(v) => {
-                  updateField('D', 'pc_repete', v);
-                  if (v !== 'oui') updateField('D', 'pc_nombre', '');
-                }}
+                onChange={(v) => updateField('D', 'pc_repete', v)}
                 options={OUI_NON}
               />
-              {form.D.pc_repete === 'oui' && (
-                <div className="flex flex-col gap-1.5 pt-2 border-t border-neutral-800">
-                  <span className="text-xs text-neutral-500 uppercase tracking-wide">
-                    Nombre de fois
-                  </span>
-                  <InputBox
-                    value={form.D.pc_nombre}
-                    onChange={(v) => updateField('D', 'pc_nombre', v)}
-                    placeholder="ex. 2"
-                  />
-                </div>
-              )}
+              <div className="flex flex-col gap-1.5 pt-2 border-t border-neutral-800">
+                <span className="text-xs text-neutral-500 uppercase tracking-wide">
+                  Nombre de fois
+                </span>
+                <InputBox
+                  value={form.D.pc_nombre}
+                  onChange={(v) => updateField('D', 'pc_nombre', v)}
+                  placeholder="ex. 2"
+                />
+              </div>
             </div>
           </FieldCard>
           <FieldCard label="État de conscience" filled={!!form.D.etat}>
@@ -967,9 +983,19 @@ export default function BilanVsav() {
                   <h2 className="font-bold text-lg" style={{ fontFamily: "'Barlow Condensed', sans-serif" }}>
                     Historique des bilans
                   </h2>
-                  <button onClick={() => setShowHistory(false)}>
-                    <X size={18} />
-                  </button>
+                  <div className="flex items-center gap-3">
+                    {history.length > 0 && (
+                      <button
+                        onClick={clearHistory}
+                        className="flex items-center gap-1 text-xs text-red-400 border border-neutral-800 rounded-md px-2 py-1 hover:border-red-800"
+                      >
+                        <Trash2 size={13} /> Effacer
+                      </button>
+                    )}
+                    <button onClick={() => setShowHistory(false)}>
+                      <X size={18} />
+                    </button>
+                  </div>
                 </div>
                 {loadingHistory ? (
                   <p className="text-neutral-500 text-sm">Chargement…</p>
