@@ -61,6 +61,25 @@ jobs:
               f.write(content)
           PY
 
+      - name: Add flashlight permission
+        run: |
+          python3 - <<'PY'
+          path = "android/app/src/main/AndroidManifest.xml"
+
+          with open(path) as f:
+              content = f.read()
+
+          if "android.permission.FLASHLIGHT" not in content:
+              content = content.replace(
+                  "<application",
+                  '<uses-permission android:name="android.permission.FLASHLIGHT"/>\n    <application',
+                  1,
+              )
+
+          with open(path, "w") as f:
+              f.write(content)
+          PY
+
       - name: Sync Android
         run: npx cap sync android
 
