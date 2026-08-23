@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { ChevronLeft, ChevronRight, Play, Square, Save, RotateCcw, Check, History, X, Trash2 } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Play, Square, Save, RotateCcw, Check, History, X, Trash2, Mic, Flashlight, FlashlightOff } from 'lucide-react';
 
 const ACCENT = '#D6362A';
 
@@ -257,6 +257,126 @@ function useCountdown(initialSeconds) {
   return { remaining, running, done, start, reset };
 }
 
+// Dictée vocale : maintenir le bouton enfoncé = écoute (relâcher = arrêt)
+function useDictation(onResult) {
+  const recognitionRef = useRef(null);
+  const [listening, setListening] = useState(false);
+  const [supported, setSupported] = useState(true);
+
+  const start = () => {
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+      setSupported(false);
+      return;
+    }
+    try {
+      const recognition = new SpeechRecognition();
+      recognition.lang = 'fr-FR';
+      recognition.continuous = true;
+      recognition.interimResults = false;
+      recognition.onresult = (event) => {
+        let transcript = '';
+        for (let i = event.resultIndex; i < event.results.length; i++) {
+          transcript += event.results[i][0].transcript;
+        }
+        if (transcript.trim()) onResult(transcript.trim());
+      };
+      recognition.onerror = () => setListening(false);
+      recognition.onend = () => setListening(false);
+      recognitionRef.current = recognition;
+      recognition.start();
+      setListening(true);
+    } catch (e) {
+      setSupported(false);
+    }
+  };
+
+  const stop = () => {
+    if (recognitionRef.current) {
+      try {
+        recognitionRef.current.stop();
+      } catch (e) {
+        // ignore
+      }
+    }
+    setListening(false);
+  };
+
+  return { listening, supported, start, stop };
+}
+
+// Torche du téléphone (via la caméra arrière) — support variable selon l'appareil/navigateur
+function useTorch() {
+  const streamRef = useRef(null);
+  const [on, setOn] = useState(false);
+  const [supported, setSupported] = useState(true);
+
+  const toggle = async () => {
+    try {
+      if (!on) {
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: 'environment' },
+        });
+        const track = stream.getVideoTracks()[0];
+        const caps = track.getCapabilities ? track.getCapabilities() : {};
+        if (!caps.torch) {
+          setSupported(false);
+          stream.getTracks().forEach((t) => t.stop());
+          return;
+        }
+        await track.applyConstraints({ advanced: [{ torch: true }] });
+        streamRef.current = stream;
+        setOn(true);
+      } else {
+        if (streamRef.current) {
+          const track = streamRef.current.getVideoTracks()[0];
+          try {
+            await track.applyConstraints({ advanced: [{ torch: false }] });
+          } catch (e) {
+            // ignore
+          }
+          streamRef.current.getTracks().forEach((t) => t.stop());
+          streamRef.current = null;
+        }
+        setOn(false);
+      }
+    } catch (e) {
+      setSupported(false);
+    }
+  };
+
+  return { on, supported, toggle };
+}
+
+function DictationButton({ onResult }) {
+  const dictation = useDictation(onResult);
+  if (!dictation.supported) {
+    return (
+      <span className="text-xs text-neutral-600 italic">Dictée vocale indisponible</span>
+    );
+  }
+  return (
+    <button
+      onMouseDown={dictation.start}
+      onMouseUp={dictation.stop}
+      onMouseLeave={dictation.stop}
+      onTouchStart={(e) => {
+        e.preventDefault();
+        dictation.start();
+      }}
+      onTouchEnd={(e) => {
+        e.preventDefault();
+        dictation.stop();
+      }}
+      className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide px-3 py-1.5 rounded shrink-0 select-none"
+      style={{ backgroundColor: dictation.listening ? '#DC2626' : '#2C3136', color: '#fff' }}
+    >
+      <Mic size={13} className={dictation.listening ? 'animate-pulse' : ''} />
+      {dictation.listening ? 'Écoute…' : 'Maintenir pour dicter'}
+    </button>
+  );
+}
+
 function TimerBox({ timer }) {
   const mm = String(Math.floor(timer.remaining / 60)).padStart(2, '0');
   const ss = String(timer.remaining % 60).padStart(2, '0');
@@ -378,10 +498,27 @@ function FieldCard({ label, filled, children }) {
   );
 }
 
+function TorchButton() {
+  const torch = useTorch();
+  if (!torch.supported) {
+    return <span className="text-xs text-neutral-600 italic">Torche indisponible</span>;
+  }
+  return (
+    <button
+      onClick={torch.toggle}
+      className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide px-3 py-1.5 rounded shrink-0"
+      style={{ backgroundColor: torch.on ? AMBER : '#2C3136', color: torch.on ? '#1a1200' : '#fff' }}
+    >
+      {torch.on ? <FlashlightOff size={13} /> : <Flashlight size={13} />}
+      {torch.on ? 'Éteindre' : 'Lampe torche'}
+    </button>
+  );
+}
+
 function SamplerField({ letter, label, value, onChange }) {
   return (
     <div className="bg-neutral-900 border border-neutral-800 rounded-lg p-4 flex flex-col gap-2">
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-2 flex-wrap">
         <span
           className="w-7 h-7 rounded flex items-center justify-center text-white text-sm font-bold shrink-0"
           style={{ backgroundColor: ACCENT, fontFamily: "'Barlow Condensed', sans-serif" }}
@@ -390,15 +527,18 @@ function SamplerField({ letter, label, value, onChange }) {
         </span>
         <span className="text-sm font-semibold text-neutral-200 uppercase tracking-wide">{label}</span>
         <span
-          className="w-1.5 h-1.5 rounded-full ml-auto shrink-0"
+          className="w-1.5 h-1.5 rounded-full shrink-0"
           style={{ backgroundColor: value ? EMERALD : '#404040' }}
         />
+        <div className="ml-auto">
+          <DictationButton onResult={(t) => onChange(value ? `${value} ${t}` : t)} />
+        </div>
       </div>
       <textarea
         value={value}
         onChange={(e) => onChange(e.target.value)}
         rows={2}
-        placeholder="Texte libre…"
+        placeholder="Texte libre ou dictée vocale…"
         className="w-full bg-neutral-950 border border-neutral-800 rounded-md px-3 py-2 text-sm text-neutral-100 focus:outline-none focus:border-neutral-500 resize-none"
         style={{ fontFamily: "'Inter', sans-serif" }}
       />
@@ -454,6 +594,17 @@ function RecapView({ data }) {
               </div>
             ))}
           </div>
+          {page === 'FAST' &&
+            data.FAST.face === 'non' &&
+            data.FAST.arm === 'non' &&
+            data.FAST.speech === 'non' && (
+              <div
+                className="mt-2 flex items-center gap-2 text-sm bg-neutral-900 border rounded-md px-3 py-2"
+                style={{ borderColor: '#065F46', color: EMERALD }}
+              >
+                <Check size={14} /> FAST négatif
+              </div>
+            )}
         </div>
       ))}
     </div>
@@ -716,11 +867,14 @@ export default function BilanVsav() {
             />
           </FieldCard>
           <FieldCard label="Pupilles sym., taille normale, réactives" filled={!!form.D.pupilles}>
-            <ToggleGroup
-              value={form.D.pupilles}
-              onChange={(v) => updateField('D', 'pupilles', v)}
-              options={OUI_NON}
-            />
+            <div className="flex flex-col gap-3 items-stretch sm:flex-row sm:items-center">
+              <ToggleGroup
+                value={form.D.pupilles}
+                onChange={(v) => updateField('D', 'pupilles', v)}
+                options={OUI_NON}
+              />
+              <TorchButton />
+            </div>
           </FieldCard>
           <FieldCard label="Sensibilité / motricité mains" filled={!!form.D.sens_mains}>
             <ToggleGroup
