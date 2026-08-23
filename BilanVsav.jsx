@@ -1,7 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { ChevronLeft, ChevronRight, Play, Square, Save, RotateCcw, Check, History, X, Trash2, Flashlight, FlashlightOff } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Play, Square, Save, RotateCcw, Check, History, X, Trash2, Flashlight, FlashlightOff, FileText, MessageSquare } from 'lucide-react';
 import { Capacitor } from '@capacitor/core';
 import { Torch } from '@capawesome/capacitor-torch';
+import { Filesystem, Directory } from '@capacitor/filesystem';
+import { Share } from '@capacitor/share';
+import { jsPDF } from 'jspdf';
 
 const ACCENT = '#D6362A';
 
@@ -25,8 +28,9 @@ const storage = {
 const AMBER = '#F2A73B';
 const EMERALD = '#34D399';
 
-const STEPS = ['B', 'C', 'D', 'E', 'FAST', 'SAMPLER', 'RECAP'];
+const STEPS = ['A', 'B', 'C', 'D', 'E', 'FAST', 'SAMPLER', 'RECAP'];
 const PAGE_TITLES = {
+  A: 'Voies aériennes',
   B: 'Respiration',
   C: 'Circulation',
   D: 'Neurologique',
@@ -34,7 +38,7 @@ const PAGE_TITLES = {
   FAST: 'FAST — Suspicion AVC',
   SAMPLER: 'SAMPLER — Anamnèse',
 };
-const SECTION_BADGE = { B: 'B', C: 'C', D: 'D', E: 'E', FAST: 'F', SAMPLER: 'S' };
+const SECTION_BADGE = { A: 'A', B: 'B', C: 'C', D: 'D', E: 'E', FAST: 'F', SAMPLER: 'S' };
 
 const OUI_NON = [{ value: 'oui', label: 'Oui' }, { value: 'non', label: 'Non' }];
 const SPO2_MODE = [{ value: 'air', label: 'Sous air' }, { value: 'o2', label: 'Sous O2' }];
@@ -45,6 +49,8 @@ const AVPU_OPTIONS = [
   { value: 'P', label: 'P' },
   { value: 'U', label: 'U' },
 ];
+
+const EVA_OPTIONS = Array.from({ length: 11 }, (_, i) => ({ value: String(i), label: String(i) }));
 
 const BREATH_SIGNS = [
   { value: 'battement_ailes_nez', label: 'Battement des ailes du nez' },
@@ -87,6 +93,9 @@ const ENV_OPTIONS = [
 const optsToLabels = (opts) => Object.fromEntries(opts.map((o) => [o.value, o.label]));
 
 const FIELD_LABELS = {
+  obstruction: 'Liberté des voies aériennes',
+  pls: 'PLS envisagée',
+  protection_cervicale: 'Protection cervicale',
   fr: 'Fréquence respiratoire',
   fr_signes: 'Signes associés',
   spo2: 'SpO2 (SAT)',
@@ -108,6 +117,8 @@ const FIELD_LABELS = {
   pupilles: 'Pupilles sym., taille normale, réactives',
   sens_mains: 'Sensibilité / motricité mains',
   sens_pieds: 'Sensibilité / motricité pieds',
+  eva: 'Douleur (EVA)',
+  douleur_loc: 'Localisation douleur',
   glycemie: 'Glycémie',
   temperature: 'Température',
   victime_env: 'Victime retrouvée au',
@@ -126,9 +137,10 @@ const FIELD_LABELS = {
 };
 
 const PAGE_FIELDS = {
+  A: ['obstruction', 'pls', 'protection_cervicale'],
   B: ['fr', 'fr_signes', 'spo2', 'spo2_mode'],
   C: ['fc', 'pa_gauche', 'pa_droite', 'pouls_sym', 'pouls_frappe', 'trc', 'signes', 'hemorragie', 'hemorragie_sites'],
-  D: ['pci', 'pc_repete', 'pc_nombre', 'etat', 'orientation', 'pupilles', 'sens_mains', 'sens_pieds', 'glycemie'],
+  D: ['pci', 'pc_repete', 'pc_nombre', 'etat', 'orientation', 'pupilles', 'sens_mains', 'sens_pieds', 'eva', 'douleur_loc', 'glycemie'],
   E: ['temperature', 'victime_env', 'lesion'],
   FAST: ['face', 'arm', 'speech', 'temps'],
   SAMPLER: ['sampler_s', 'sampler_a', 'sampler_m', 'sampler_p', 'sampler_l', 'sampler_e', 'sampler_r'],
@@ -142,9 +154,13 @@ const UNITS = {
   temperature: '°C',
   pa_gauche: 'mmHg',
   pa_droite: 'mmHg',
+  eva: '/10',
 };
 
 const VALUE_LABELS = {
+  obstruction: optsToLabels(OUI_NON),
+  pls: optsToLabels(OUI_NON),
+  protection_cervicale: optsToLabels(OUI_NON),
   fr_signes: optsToLabels(BREATH_SIGNS),
   spo2_mode: optsToLabels(SPO2_MODE),
   pouls_sym: optsToLabels(OUI_NON),
@@ -185,6 +201,7 @@ function formatValue(field, value) {
 }
 
 const initialForm = () => ({
+  A: { obstruction: '', pls: '', protection_cervicale: '' },
   B: { fr: '', fr_signes: [], spo2: '', spo2_mode: '' },
   C: {
     fc: '',
@@ -208,6 +225,8 @@ const initialForm = () => ({
     pupilles: '',
     sens_mains: '',
     sens_pieds: '',
+    eva: '',
+    douleur_loc: '',
     glycemie: '',
   },
   E: { temperature: '', victime_env: '', lesion: '' },
@@ -223,6 +242,33 @@ const initialForm = () => ({
   },
 });
 
+function alertTimerDone() {
+  try {
+    if (navigator.vibrate) navigator.vibrate([200, 100, 200]);
+  } catch (e) {
+    // ignore
+  }
+  try {
+    const Ctx = window.AudioContext || window.webkitAudioContext;
+    if (!Ctx) return;
+    const ctx = new Ctx();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = 'sine';
+    osc.frequency.value = 880;
+    gain.gain.setValueAtTime(0.001, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.3, ctx.currentTime + 0.02);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.4);
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start();
+    osc.stop(ctx.currentTime + 0.45);
+    osc.onended = () => ctx.close();
+  } catch (e) {
+    // ignore
+  }
+}
+
 function useCountdown(initialSeconds) {
   const [remaining, setRemaining] = useState(initialSeconds);
   const [running, setRunning] = useState(false);
@@ -237,6 +283,7 @@ function useCountdown(initialSeconds) {
             clearInterval(intervalRef.current);
             setRunning(false);
             setDone(true);
+            alertTimerDone();
             return 0;
           }
           return r - 1;
@@ -470,8 +517,139 @@ function getRawValue(page, field, data) {
   return data[page][field];
 }
 
+// Construit le contenu texte du bilan (réutilisé pour le PDF et le SMS)
+function buildRecapLines(data) {
+  const lines = [];
+  ['A', 'B', 'C', 'D', 'E', 'FAST', 'SAMPLER'].forEach((page) => {
+    const rows = PAGE_FIELDS[page]
+      .map((f) => ({ f, v: formatValue(f, getRawValue(page, f, data)) }))
+      .filter((r) => r.v !== null);
+    if (rows.length === 0) return;
+    lines.push(`${PAGE_TITLES[page] || page}`);
+    rows.forEach(({ f, v }) => lines.push(`  ${FIELD_LABELS[f]} : ${v}`));
+    if (
+      page === 'FAST' &&
+      data.FAST.face === 'non' &&
+      data.FAST.arm === 'non' &&
+      data.FAST.speech === 'non'
+    ) {
+      lines.push('  FAST négatif');
+    }
+    lines.push('');
+  });
+  return lines;
+}
+
+function arrayBufferToBase64(buffer) {
+  let binary = '';
+  const bytes = new Uint8Array(buffer);
+  for (let i = 0; i < bytes.byteLength; i++) binary += String.fromCharCode(bytes[i]);
+  return btoa(binary);
+}
+
+async function exportAndSharePdf(form, patientNum) {
+  const doc = new jsPDF();
+  const pageHeight = doc.internal.pageSize.getHeight();
+  let y = 18;
+
+  doc.setFontSize(16);
+  doc.setFont(undefined, 'bold');
+  doc.text(`Bilan VSAV n°${patientNum}`, 14, y);
+  doc.setFont(undefined, 'normal');
+  y += 7;
+  doc.setFontSize(10);
+  doc.setTextColor(120);
+  doc.text(new Date().toLocaleString('fr-FR'), 14, y);
+  doc.setTextColor(0);
+  y += 10;
+
+  const lines = buildRecapLines(form);
+  doc.setFontSize(11);
+  lines.forEach((line) => {
+    if (y > pageHeight - 15) {
+      doc.addPage();
+      y = 18;
+    }
+    if (line && !line.startsWith(' ')) {
+      doc.setFont(undefined, 'bold');
+      doc.text(line, 14, y);
+      doc.setFont(undefined, 'normal');
+    } else {
+      doc.text(line, 18, y);
+    }
+    y += 6;
+  });
+
+  const base64 = arrayBufferToBase64(doc.output('arraybuffer'));
+  const fileName = `bilan-vsav-${patientNum}-${Date.now()}.pdf`;
+  const written = await Filesystem.writeFile({
+    path: fileName,
+    data: base64,
+    directory: Directory.Cache,
+  });
+  await Share.share({
+    title: `Bilan VSAV n°${patientNum}`,
+    text: `Bilan VSAV n°${patientNum}`,
+    url: written.uri,
+    dialogTitle: 'Partager le bilan',
+  });
+}
+
+function sendBilanBySms(form, patientNum) {
+  const lines = buildRecapLines(form);
+  const text = `Bilan VSAV n°${patientNum} — ${new Date().toLocaleString('fr-FR')}\n\n${lines.join('\n')}`;
+  const url = `sms:?body=${encodeURIComponent(text)}`;
+  window.open(url, '_system');
+}
+
+function ExportButtons({ form, patientNum }) {
+  const [working, setWorking] = useState(false);
+  const [error, setError] = useState('');
+
+  const handlePdf = async () => {
+    setWorking(true);
+    setError('');
+    try {
+      await exportAndSharePdf(form, patientNum);
+    } catch (e) {
+      setError(e.message || "Erreur lors de l'export PDF");
+    }
+    setWorking(false);
+  };
+
+  const handleSms = () => {
+    setError('');
+    try {
+      sendBilanBySms(form, patientNum);
+    } catch (e) {
+      setError(e.message || "Erreur lors de l'ouverture des SMS");
+    }
+  };
+
+  return (
+    <div className="flex flex-col gap-1.5">
+      <div className="flex gap-2">
+        <button
+          onClick={handlePdf}
+          disabled={working}
+          className="flex-1 flex items-center justify-center gap-1.5 text-xs font-semibold uppercase tracking-wide px-3 py-2.5 rounded-md border border-neutral-800 text-neutral-200 disabled:opacity-50"
+        >
+          <FileText size={14} /> {working ? 'Génération…' : 'Exporter en PDF'}
+        </button>
+        <button
+          onClick={handleSms}
+          className="flex-1 flex items-center justify-center gap-1.5 text-xs font-semibold uppercase tracking-wide px-3 py-2.5 rounded-md border border-neutral-800 text-neutral-200"
+        >
+          <MessageSquare size={14} /> Envoyer par SMS
+        </button>
+      </div>
+      {error && <span className="text-xs text-red-400">{error}</span>}
+    </div>
+  );
+}
+
 function RecapView({ data }) {
-  const sections = ['B', 'C', 'D', 'E', 'FAST', 'SAMPLER']
+  const sections = ['A', 'B', 'C', 'D', 'E', 'FAST', 'SAMPLER']
     .map((page) => {
       const rows = PAGE_FIELDS[page]
         .map((f) => ({ f, v: formatValue(f, getRawValue(page, f, data)) }))
@@ -616,6 +794,7 @@ export default function BilanVsav() {
   }
 
   function newBilan() {
+    if (!window.confirm('Effacer le bilan en cours et repartir de zéro ?')) return;
     setForm(initialForm());
     frTimer.reset();
     fcTimer.reset();
@@ -644,6 +823,28 @@ export default function BilanVsav() {
 
   function renderStepContent() {
     const s = STEPS[step];
+    if (s === 'A')
+      return (
+        <>
+          <FieldCard label="Liberté des voies aériennes" filled={!!form.A.obstruction}>
+            <ToggleGroup
+              value={form.A.obstruction}
+              onChange={(v) => updateField('A', 'obstruction', v)}
+              options={OUI_NON}
+            />
+          </FieldCard>
+          <FieldCard label="PLS envisagée" filled={!!form.A.pls}>
+            <ToggleGroup value={form.A.pls} onChange={(v) => updateField('A', 'pls', v)} options={OUI_NON} />
+          </FieldCard>
+          <FieldCard label="Protection cervicale" filled={!!form.A.protection_cervicale}>
+            <ToggleGroup
+              value={form.A.protection_cervicale}
+              onChange={(v) => updateField('A', 'protection_cervicale', v)}
+              options={OUI_NON}
+            />
+          </FieldCard>
+        </>
+      );
     if (s === 'B')
       return (
         <>
@@ -857,6 +1058,17 @@ export default function BilanVsav() {
               options={OUI_NON}
             />
           </FieldCard>
+          <FieldCard label="Douleur (EVA)" filled={!!form.D.eva}>
+            <ToggleGroup value={form.D.eva} onChange={(v) => updateField('D', 'eva', v)} options={EVA_OPTIONS} />
+          </FieldCard>
+          <FieldCard label="Localisation douleur" filled={!!form.D.douleur_loc}>
+            <InputBox
+              value={form.D.douleur_loc}
+              onChange={(v) => updateField('D', 'douleur_loc', v)}
+              placeholder="ex. abdomen, jambe droite…"
+              width="w-48"
+            />
+          </FieldCard>
           <FieldCard label="Glycémie" filled={!!form.D.glycemie}>
             <InputBox
               value={form.D.glycemie}
@@ -976,6 +1188,7 @@ export default function BilanVsav() {
       );
     return (
       <div className="flex flex-col gap-4">
+        <ExportButtons form={form} patientNum={patientNum} />
         <RecapView data={form} />
         {saved && (
           <div className="flex items-center gap-2 text-sm bg-neutral-900 border rounded-md px-3 py-2" style={{ borderColor: '#065F46', color: EMERALD }}>
