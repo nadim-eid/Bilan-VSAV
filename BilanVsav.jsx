@@ -1,5 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { ChevronLeft, ChevronRight, Play, Square, Save, RotateCcw, Check, History, X, Trash2, Mic, Flashlight, FlashlightOff } from 'lucide-react';
+import { Capacitor } from '@capacitor/core';
+import { SpeechRecognition } from '@capacitor-community/speech-recognition';
+import { Torch } from '@capawesome/capacitor-torch';
 
 const ACCENT = '#D6362A';
 
@@ -257,107 +260,75 @@ function useCountdown(initialSeconds) {
   return { remaining, running, done, start, reset };
 }
 
-// Dictée vocale : maintenir le bouton enfoncé = écoute (relâcher = arrêt)
-const DICTATION_ERRORS = {
-  'not-allowed': 'Micro refusé — autorise le micro pour ce site dans les réglages.',
-  'service-not-allowed': 'Micro refusé — autorise le micro pour ce site dans les réglages.',
-  'audio-capture': 'Aucun micro détecté sur cet appareil.',
-  network: 'Pas de connexion réseau.',
-  'no-speech': 'Aucune parole détectée.',
-};
-
+// Dictée vocale (plugin natif) : maintenir le bouton enfoncé = écoute (relâcher = arrêt)
 function useDictation(onResult) {
-  const recognitionRef = useRef(null);
   const [listening, setListening] = useState(false);
-  const [supported] = useState(
-    typeof window !== 'undefined' && !!(window.SpeechRecognition || window.webkitSpeechRecognition)
-  );
   const [error, setError] = useState('');
+  const latestRef = useRef('');
+  const listenerRef = useRef(null);
+  const native = Capacitor.isNativePlatform();
 
-  const start = () => {
-    if (recognitionRef.current) return; // évite un double démarrage (tactile + souris)
-    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (!SpeechRecognition) return;
+  const start = async () => {
+    if (!native) {
+      setError("Dictée disponible uniquement dans l'app installée (pas dans le navigateur).");
+      return;
+    }
+    if (listening) return; // évite un double démarrage (tactile + souris)
     setError('');
     try {
-      const recognition = new SpeechRecognition();
-      recognition.lang = 'fr-FR';
-      recognition.continuous = true;
-      recognition.interimResults = false;
-      recognition.onresult = (event) => {
-        let transcript = '';
-        for (let i = event.resultIndex; i < event.results.length; i++) {
-          transcript += event.results[i][0].transcript;
-        }
-        if (transcript.trim()) onResult(transcript.trim());
-      };
-      recognition.onerror = (event) => {
-        setError(DICTATION_ERRORS[event.error] || event.error || 'Erreur inconnue');
-        setListening(false);
-        recognitionRef.current = null;
-      };
-      recognition.onend = () => {
-        setListening(false);
-        recognitionRef.current = null;
-      };
-      recognitionRef.current = recognition;
-      recognition.start();
+      const perm = await SpeechRecognition.requestPermissions();
+      if (perm.speechRecognition && perm.speechRecognition !== 'granted') {
+        setError("Micro refusé — autorise-le dans les réglages de l'app (Android : Paramètres > Applications > Bilan VSAV > Autorisations).");
+        return;
+      }
+      latestRef.current = '';
+      listenerRef.current = await SpeechRecognition.addListener('partialResults', (data) => {
+        if (data.matches && data.matches[0]) latestRef.current = data.matches[0];
+      });
+      await SpeechRecognition.start({ language: 'fr-FR', popup: false, partialResults: true });
       setListening(true);
     } catch (e) {
       setError(e.message || 'Erreur au démarrage');
-      recognitionRef.current = null;
     }
   };
 
-  const stop = () => {
-    if (recognitionRef.current) {
-      try {
-        recognitionRef.current.stop();
-      } catch (e) {
-        // ignore
-      }
+  const stop = async () => {
+    if (!listening) return;
+    try {
+      await SpeechRecognition.stop();
+    } catch (e) {
+      // ignore
     }
+    if (listenerRef.current) {
+      listenerRef.current.remove();
+      listenerRef.current = null;
+    }
+    setListening(false);
+    if (latestRef.current.trim()) onResult(latestRef.current.trim());
   };
 
-  return { listening, supported, error, start, stop };
+  return { listening, supported: true, error, start, stop };
 }
 
-// Torche du téléphone (via la caméra arrière) — support variable selon l'appareil/navigateur
+// Torche du téléphone (plugin natif — permission normale, pas de popup nécessaire)
 function useTorch() {
-  const streamRef = useRef(null);
   const [on, setOn] = useState(false);
   const [error, setError] = useState('');
+  const native = Capacitor.isNativePlatform();
 
   const toggle = async () => {
+    if (!native) {
+      setError("Torche disponible uniquement dans l'app installée (pas dans le navigateur).");
+      return;
+    }
     setError('');
     try {
       if (!on) {
-        const stream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: 'environment' },
-        });
-        const track = stream.getVideoTracks()[0];
-        const caps = track.getCapabilities ? track.getCapabilities() : {};
-        if (!caps.torch) {
-          setError("Cet appareil/navigateur n'expose pas le contrôle de la torche.");
-          stream.getTracks().forEach((t) => t.stop());
-          return;
-        }
-        await track.applyConstraints({ advanced: [{ torch: true }] });
-        streamRef.current = stream;
-        setOn(true);
+        await Torch.enable();
       } else {
-        if (streamRef.current) {
-          const track = streamRef.current.getVideoTracks()[0];
-          try {
-            await track.applyConstraints({ advanced: [{ torch: false }] });
-          } catch (e) {
-            // ignore
-          }
-          streamRef.current.getTracks().forEach((t) => t.stop());
-          streamRef.current = null;
-        }
-        setOn(false);
+        await Torch.disable();
       }
+      setOn((v) => !v);
     } catch (e) {
       setError(e.message || 'Erreur torche');
     }
@@ -1219,4 +1190,3 @@ export default function BilanVsav() {
     </div>
   );
 }
-
