@@ -258,17 +258,27 @@ function useCountdown(initialSeconds) {
 }
 
 // Dictée vocale : maintenir le bouton enfoncé = écoute (relâcher = arrêt)
+const DICTATION_ERRORS = {
+  'not-allowed': 'Micro refusé — autorise le micro pour ce site dans les réglages.',
+  'service-not-allowed': 'Micro refusé — autorise le micro pour ce site dans les réglages.',
+  'audio-capture': 'Aucun micro détecté sur cet appareil.',
+  network: 'Pas de connexion réseau.',
+  'no-speech': 'Aucune parole détectée.',
+};
+
 function useDictation(onResult) {
   const recognitionRef = useRef(null);
   const [listening, setListening] = useState(false);
-  const [supported, setSupported] = useState(true);
+  const [supported] = useState(
+    typeof window !== 'undefined' && !!(window.SpeechRecognition || window.webkitSpeechRecognition)
+  );
+  const [error, setError] = useState('');
 
   const start = () => {
+    if (recognitionRef.current) return; // évite un double démarrage (tactile + souris)
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (!SpeechRecognition) {
-      setSupported(false);
-      return;
-    }
+    if (!SpeechRecognition) return;
+    setError('');
     try {
       const recognition = new SpeechRecognition();
       recognition.lang = 'fr-FR';
@@ -281,13 +291,21 @@ function useDictation(onResult) {
         }
         if (transcript.trim()) onResult(transcript.trim());
       };
-      recognition.onerror = () => setListening(false);
-      recognition.onend = () => setListening(false);
+      recognition.onerror = (event) => {
+        setError(DICTATION_ERRORS[event.error] || event.error || 'Erreur inconnue');
+        setListening(false);
+        recognitionRef.current = null;
+      };
+      recognition.onend = () => {
+        setListening(false);
+        recognitionRef.current = null;
+      };
       recognitionRef.current = recognition;
       recognition.start();
       setListening(true);
     } catch (e) {
-      setSupported(false);
+      setError(e.message || 'Erreur au démarrage');
+      recognitionRef.current = null;
     }
   };
 
@@ -299,19 +317,19 @@ function useDictation(onResult) {
         // ignore
       }
     }
-    setListening(false);
   };
 
-  return { listening, supported, start, stop };
+  return { listening, supported, error, start, stop };
 }
 
 // Torche du téléphone (via la caméra arrière) — support variable selon l'appareil/navigateur
 function useTorch() {
   const streamRef = useRef(null);
   const [on, setOn] = useState(false);
-  const [supported, setSupported] = useState(true);
+  const [error, setError] = useState('');
 
   const toggle = async () => {
+    setError('');
     try {
       if (!on) {
         const stream = await navigator.mediaDevices.getUserMedia({
@@ -320,7 +338,7 @@ function useTorch() {
         const track = stream.getVideoTracks()[0];
         const caps = track.getCapabilities ? track.getCapabilities() : {};
         if (!caps.torch) {
-          setSupported(false);
+          setError("Cet appareil/navigateur n'expose pas le contrôle de la torche.");
           stream.getTracks().forEach((t) => t.stop());
           return;
         }
@@ -341,39 +359,44 @@ function useTorch() {
         setOn(false);
       }
     } catch (e) {
-      setSupported(false);
+      setError(e.message || 'Erreur torche');
     }
   };
 
-  return { on, supported, toggle };
+  return { on, error, toggle };
 }
 
 function DictationButton({ onResult }) {
   const dictation = useDictation(onResult);
   if (!dictation.supported) {
     return (
-      <span className="text-xs text-neutral-600 italic">Dictée vocale indisponible</span>
+      <span className="text-xs text-neutral-600 italic">
+        Dictée vocale non supportée par ce navigateur
+      </span>
     );
   }
   return (
-    <button
-      onMouseDown={dictation.start}
-      onMouseUp={dictation.stop}
-      onMouseLeave={dictation.stop}
-      onTouchStart={(e) => {
-        e.preventDefault();
-        dictation.start();
-      }}
-      onTouchEnd={(e) => {
-        e.preventDefault();
-        dictation.stop();
-      }}
-      className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide px-3 py-1.5 rounded shrink-0 select-none"
-      style={{ backgroundColor: dictation.listening ? '#DC2626' : '#2C3136', color: '#fff' }}
-    >
-      <Mic size={13} className={dictation.listening ? 'animate-pulse' : ''} />
-      {dictation.listening ? 'Écoute…' : 'Maintenir pour dicter'}
-    </button>
+    <div className="flex flex-col items-end gap-1">
+      <button
+        onPointerDown={(e) => {
+          e.preventDefault();
+          dictation.start();
+        }}
+        onPointerUp={dictation.stop}
+        onPointerLeave={dictation.stop}
+        onPointerCancel={dictation.stop}
+        className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide px-3 py-1.5 rounded shrink-0 select-none"
+        style={{
+          backgroundColor: dictation.listening ? '#DC2626' : '#2C3136',
+          color: '#fff',
+          touchAction: 'none',
+        }}
+      >
+        <Mic size={13} className={dictation.listening ? 'animate-pulse' : ''} />
+        {dictation.listening ? 'Écoute…' : 'Maintenir pour dicter'}
+      </button>
+      {dictation.error && <span className="text-xs text-red-400 text-right">{dictation.error}</span>}
+    </div>
   );
 }
 
@@ -500,18 +523,18 @@ function FieldCard({ label, filled, children }) {
 
 function TorchButton() {
   const torch = useTorch();
-  if (!torch.supported) {
-    return <span className="text-xs text-neutral-600 italic">Torche indisponible</span>;
-  }
   return (
-    <button
-      onClick={torch.toggle}
-      className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide px-3 py-1.5 rounded shrink-0"
-      style={{ backgroundColor: torch.on ? AMBER : '#2C3136', color: torch.on ? '#1a1200' : '#fff' }}
-    >
-      {torch.on ? <FlashlightOff size={13} /> : <Flashlight size={13} />}
-      {torch.on ? 'Éteindre' : 'Lampe torche'}
-    </button>
+    <div className="flex flex-col items-start gap-1">
+      <button
+        onClick={torch.toggle}
+        className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide px-3 py-1.5 rounded shrink-0"
+        style={{ backgroundColor: torch.on ? AMBER : '#2C3136', color: torch.on ? '#1a1200' : '#fff' }}
+      >
+        {torch.on ? <FlashlightOff size={13} /> : <Flashlight size={13} />}
+        {torch.on ? 'Éteindre' : 'Lampe torche'}
+      </button>
+      {torch.error && <span className="text-xs text-red-400">{torch.error}</span>}
+    </div>
   );
 }
 
@@ -1196,3 +1219,4 @@ export default function BilanVsav() {
     </div>
   );
 }
+
