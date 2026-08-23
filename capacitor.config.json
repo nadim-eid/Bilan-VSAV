@@ -1,7 +1,6 @@
 {
   "appId": "fr.bilanvsav.app",
-  "appName": "Bilan VSAV",
+  "appName": "Bilan de l'équipier",
   "webDir": "dist",
   "bundledWebRuntime": false
 }
-
