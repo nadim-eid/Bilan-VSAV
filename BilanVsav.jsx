@@ -28,17 +28,18 @@ const storage = {
 const AMBER = '#F2A73B';
 const EMERALD = '#34D399';
 
-const STEPS = ['A', 'B', 'C', 'D', 'E', 'FAST', 'SAMPLER', 'RECAP'];
+const STEPS = ['A', 'B', 'C', 'D', 'E', 'BRULURE', 'FAST', 'SAMPLER', 'RECAP'];
 const PAGE_TITLES = {
   A: 'Voies aériennes',
   B: 'Respiration',
   C: 'Circulation',
   D: 'Neurologique',
   E: 'Exposition',
+  BRULURE: 'Brûlure',
   FAST: 'FAST — Suspicion AVC',
   SAMPLER: 'SAMPLER — Anamnèse',
 };
-const SECTION_BADGE = { A: 'A', B: 'B', C: 'C', D: 'D', E: 'E', FAST: 'F', SAMPLER: 'S' };
+const SECTION_BADGE = { A: 'A', B: 'B', C: 'C', D: 'D', E: 'E', BRULURE: 'Br', FAST: 'F', SAMPLER: 'S' };
 
 const OUI_NON = [{ value: 'oui', label: 'Oui' }, { value: 'non', label: 'Non' }];
 const SPO2_MODE = [{ value: 'air', label: 'Sous air' }, { value: 'o2', label: 'Sous O2' }];
@@ -51,6 +52,36 @@ const AVPU_OPTIONS = [
 ];
 
 const EVA_OPTIONS = Array.from({ length: 11 }, (_, i) => ({ value: String(i), label: String(i) }));
+
+const BRULURE_DEGRE_OPTIONS = [
+  { value: '1', label: '1er degré' },
+  { value: '2s', label: '2e superficiel' },
+  { value: '2p', label: '2e profond' },
+  { value: '3', label: '3e degré' },
+];
+
+const BRULURE_TYPE_OPTIONS = [
+  { value: 'thermique', label: 'Thermique' },
+  { value: 'electrique', label: 'Électrique' },
+  { value: 'chimique', label: 'Chimique' },
+  { value: 'radiologique', label: 'Radiologique' },
+];
+
+// Règle des 9 de Wallace (référence SUAP) — adulte
+const BRULURE_ZONES_9 = [
+  { value: 'tete_cou', label: 'Tête et cou', pct: 9 },
+  { value: 'bras_droit', label: 'Bras droit', pct: 9 },
+  { value: 'bras_gauche', label: 'Bras gauche', pct: 9 },
+  { value: 'tronc_avant', label: 'Tronc (avant)', pct: 18 },
+  { value: 'tronc_arriere', label: 'Tronc (arrière)', pct: 18 },
+  { value: 'jambe_droite', label: 'Jambe droite', pct: 18 },
+  { value: 'jambe_gauche', label: 'Jambe gauche', pct: 18 },
+  { value: 'perinee', label: 'Périnée', pct: 1 },
+];
+const BRULURE_ZONE_OPTIONS = BRULURE_ZONES_9.map((z) => ({
+  value: z.value,
+  label: `${z.label} (${z.pct}%)`,
+}));
 
 const BREATH_SIGNS = [
   { value: 'battement_ailes_nez', label: 'Battement des ailes du nez' },
@@ -122,6 +153,12 @@ const FIELD_LABELS = {
   glycemie: 'Glycémie',
   temperature: 'Température',
   victime_env: 'Victime retrouvée au',
+  brulure: 'Brûlure',
+  brulure_degre: 'Degré',
+  brulure_zones: 'Zones atteintes (règle des 9)',
+  brulure_etendue: 'Étendue',
+  brulure_loc: 'Localisation brûlure',
+  brulure_type: 'Type de brûlure',
   lesion: 'Lésion cachée',
   face: 'Face',
   arm: 'Arm (bras)',
@@ -142,6 +179,7 @@ const PAGE_FIELDS = {
   C: ['fc', 'pa_gauche', 'pa_droite', 'pouls_sym', 'pouls_frappe', 'trc', 'signes', 'hemorragie', 'hemorragie_sites'],
   D: ['pci', 'pc_repete', 'pc_nombre', 'etat', 'orientation', 'pupilles', 'sens_mains', 'sens_pieds', 'eva', 'douleur_loc', 'glycemie'],
   E: ['temperature', 'victime_env', 'lesion'],
+  BRULURE: ['brulure', 'brulure_degre', 'brulure_type', 'brulure_zones', 'brulure_etendue', 'brulure_loc'],
   FAST: ['face', 'arm', 'speech', 'temps'],
   SAMPLER: ['sampler_s', 'sampler_a', 'sampler_m', 'sampler_p', 'sampler_l', 'sampler_e', 'sampler_r'],
 };
@@ -155,10 +193,15 @@ const UNITS = {
   pa_gauche: 'mmHg',
   pa_droite: 'mmHg',
   eva: '/10',
+  brulure_etendue: '% SC',
 };
 
 const VALUE_LABELS = {
   obstruction: optsToLabels(OUI_NON),
+  brulure: optsToLabels(OUI_NON),
+  brulure_degre: optsToLabels(BRULURE_DEGRE_OPTIONS),
+  brulure_type: optsToLabels(BRULURE_TYPE_OPTIONS),
+  brulure_zones: optsToLabels(BRULURE_ZONE_OPTIONS),
   pls: optsToLabels(OUI_NON),
   protection_cervicale: optsToLabels(OUI_NON),
   fr_signes: optsToLabels(BREATH_SIGNS),
@@ -230,6 +273,14 @@ const initialForm = () => ({
     glycemie: '',
   },
   E: { temperature: '', victime_env: '', lesion: '' },
+  BRULURE: {
+    brulure: '',
+    brulure_degre: '',
+    brulure_zones: [],
+    brulure_etendue: '',
+    brulure_loc: '',
+    brulure_type: '',
+  },
   FAST: { face: '', arm: '', speech: '', temps: '' },
   SAMPLER: {
     sampler_s: '',
@@ -520,7 +571,7 @@ function getRawValue(page, field, data) {
 // Construit le contenu texte du bilan (réutilisé pour le PDF et le SMS)
 function buildRecapLines(data) {
   const lines = [];
-  ['A', 'B', 'C', 'D', 'E', 'FAST', 'SAMPLER'].forEach((page) => {
+  ['A', 'B', 'C', 'D', 'E', 'BRULURE', 'FAST', 'SAMPLER'].forEach((page) => {
     const rows = PAGE_FIELDS[page]
       .map((f) => ({ f, v: formatValue(f, getRawValue(page, f, data)) }))
       .filter((r) => r.v !== null);
@@ -649,7 +700,7 @@ function ExportButtons({ form, patientNum }) {
 }
 
 function RecapView({ data }) {
-  const sections = ['A', 'B', 'C', 'D', 'E', 'FAST', 'SAMPLER']
+  const sections = ['A', 'B', 'C', 'D', 'E', 'BRULURE', 'FAST', 'SAMPLER']
     .map((page) => {
       const rows = PAGE_FIELDS[page]
         .map((f) => ({ f, v: formatValue(f, getRawValue(page, f, data)) }))
@@ -1103,6 +1154,92 @@ export default function BilanVsav() {
               onChange={(v) => updateField('E', 'lesion', v)}
               options={OUI_NON}
             />
+          </FieldCard>
+        </>
+      );
+    if (s === 'BRULURE')
+      return (
+        <>
+          <FieldCard label="Brûlure" filled={!!form.BRULURE.brulure}>
+            <div className="flex flex-col gap-3 items-stretch">
+              <ToggleGroup
+                value={form.BRULURE.brulure}
+                onChange={(v) => {
+                  updateField('BRULURE', 'brulure', v);
+                  if (v !== 'oui') {
+                    updateField('BRULURE', 'brulure_degre', '');
+                    updateField('BRULURE', 'brulure_zones', []);
+                    updateField('BRULURE', 'brulure_etendue', '');
+                    updateField('BRULURE', 'brulure_loc', '');
+                    updateField('BRULURE', 'brulure_type', '');
+                  }
+                }}
+                options={OUI_NON}
+              />
+              {form.BRULURE.brulure === 'oui' && (
+                <div className="flex flex-col gap-4 pt-2 border-t border-neutral-800">
+                  <div className="flex flex-col gap-1.5">
+                    <span className="text-xs text-neutral-500 uppercase tracking-wide">Degré</span>
+                    <ToggleGroup
+                      value={form.BRULURE.brulure_degre}
+                      onChange={(v) => updateField('BRULURE', 'brulure_degre', v)}
+                      options={BRULURE_DEGRE_OPTIONS}
+                    />
+                  </div>
+                  <div className="flex flex-col gap-1.5">
+                    <span className="text-xs text-neutral-500 uppercase tracking-wide">Type</span>
+                    <ToggleGroup
+                      value={form.BRULURE.brulure_type}
+                      onChange={(v) => updateField('BRULURE', 'brulure_type', v)}
+                      options={BRULURE_TYPE_OPTIONS}
+                    />
+                  </div>
+                  <div className="flex flex-col gap-1.5">
+                    <span className="text-xs text-neutral-500 uppercase tracking-wide">
+                      Zones atteintes — règle des 9 de Wallace
+                    </span>
+                    <MultiToggleGroup
+                      value={form.BRULURE.brulure_zones}
+                      onChange={(zones) => {
+                        updateField('BRULURE', 'brulure_zones', zones);
+                        const total = zones.reduce((sum, z) => {
+                          const zone = BRULURE_ZONES_9.find((zz) => zz.value === z);
+                          return sum + (zone ? zone.pct : 0);
+                        }, 0);
+                        updateField('BRULURE', 'brulure_etendue', total > 0 ? String(total) : '');
+                      }}
+                      options={BRULURE_ZONE_OPTIONS}
+                    />
+                  </div>
+                  <div className="flex flex-col gap-1.5">
+                    <span className="text-xs text-neutral-500 uppercase tracking-wide">
+                      Étendue totale (calculée, modifiable)
+                    </span>
+                    <InputBox
+                      value={form.BRULURE.brulure_etendue}
+                      onChange={(v) => updateField('BRULURE', 'brulure_etendue', v)}
+                      unit="% SC"
+                      placeholder="ex. 15"
+                      numeric
+                    />
+                    <span className="text-xs text-neutral-600 italic">
+                      Règle de la paume : la paume de la victime (doigts compris) ≈ 1 % de sa
+                      surface corporelle — pratique pour ajuster sur des brûlures dispersées ou
+                      plus petites qu'une zone entière.
+                    </span>
+                  </div>
+                  <div className="flex flex-col gap-1.5">
+                    <span className="text-xs text-neutral-500 uppercase tracking-wide">Localisation</span>
+                    <InputBox
+                      value={form.BRULURE.brulure_loc}
+                      onChange={(v) => updateField('BRULURE', 'brulure_loc', v)}
+                      placeholder="ex. avant-bras droit"
+                      width="w-48"
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
           </FieldCard>
         </>
       );
