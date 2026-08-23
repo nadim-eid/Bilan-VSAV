@@ -152,6 +152,7 @@ const CIRC_SIGNS = [
   { value: 'soif', label: 'Soif' },
   { value: 'anxiete', label: 'Anxiété / agitation' },
   { value: 'vertiges', label: 'Vertiges / malaise' },
+  { value: 'douleur_thoracique', label: 'Douleur thoracique' },
 ];
 
 const NEURO_SIGNS = [
@@ -710,6 +711,13 @@ function buildRecapLines(data) {
   return lines;
 }
 
+function formatDuration(ms) {
+  const totalSec = Math.max(0, Math.round(ms / 1000));
+  const min = Math.floor(totalSec / 60);
+  const sec = totalSec % 60;
+  return `${min} min ${String(sec).padStart(2, '0')} s`;
+}
+
 function arrayBufferToBase64(buffer) {
   let binary = '';
   const bytes = new Uint8Array(buffer);
@@ -724,7 +732,7 @@ async function exportAndSharePdf(form, patientNum) {
 
   doc.setFontSize(16);
   doc.setFont(undefined, 'bold');
-  doc.text(`Bilan VSAV n°${patientNum}`, 14, y);
+  doc.text(`Bilan de l’équipier n°${patientNum}`, 14, y);
   doc.setFont(undefined, 'normal');
   y += 7;
   doc.setFontSize(10);
@@ -758,8 +766,8 @@ async function exportAndSharePdf(form, patientNum) {
     directory: Directory.Cache,
   });
   await Share.share({
-    title: `Bilan VSAV n°${patientNum}`,
-    text: `Bilan VSAV n°${patientNum}`,
+    title: `Bilan de l’équipier n°${patientNum}`,
+    text: `Bilan de l’équipier n°${patientNum}`,
     url: written.uri,
     dialogTitle: 'Partager le bilan',
   });
@@ -767,7 +775,7 @@ async function exportAndSharePdf(form, patientNum) {
 
 function sendBilanBySms(form, patientNum) {
   const lines = buildRecapLines(form);
-  const text = `Bilan VSAV n°${patientNum} — ${new Date().toLocaleString('fr-FR')}\n\n${lines.join('\n')}`;
+  const text = `Bilan de l’équipier n°${patientNum} — ${new Date().toLocaleString('fr-FR')}\n\n${lines.join('\n')}`;
   const url = `sms:?body=${encodeURIComponent(text)}`;
   window.open(url, '_system');
 }
@@ -903,6 +911,8 @@ export default function BilanVsav() {
   const [viewing, setViewing] = useState(null);
   const [catQueue, setCatQueue] = useState([]);
   const shownCatIds = useRef(new Set());
+  const bilanStartRef = useRef(null);
+  const [bilanDuration, setBilanDuration] = useState(null);
 
   const frTimer = useCountdown(60);
   const fcTimer = useCountdown(60);
@@ -910,6 +920,14 @@ export default function BilanVsav() {
 
   useEffect(() => {
     if (mainRef.current) mainRef.current.scrollTop = 0;
+  }, [step]);
+
+  // Chrono du bilan : capture la durée dès la première arrivée sur le récap,
+  // à partir du tout premier champ renseigné.
+  useEffect(() => {
+    if (STEPS[step] === 'RECAP' && bilanStartRef.current !== null && bilanDuration === null) {
+      setBilanDuration(Date.now() - bilanStartRef.current);
+    }
   }, [step]);
 
   useEffect(() => {
@@ -940,6 +958,7 @@ export default function BilanVsav() {
   }
 
   function updateField(page, field, value) {
+    if (bilanStartRef.current === null) bilanStartRef.current = Date.now();
     setForm((f) => ({ ...f, [page]: { ...f[page], [field]: value } }));
     if (saved) setSaved(false);
   }
@@ -984,6 +1003,8 @@ export default function BilanVsav() {
     setPatientNum((n) => n + 1);
     setCatQueue([]);
     shownCatIds.current = new Set();
+    bilanStartRef.current = null;
+    setBilanDuration(null);
   }
 
   function pushCat(id, title, message) {
@@ -1782,6 +1803,14 @@ export default function BilanVsav() {
             <Check size={16} /> Bilan n°{patientNum} enregistré à {savedAt}
           </div>
         )}
+        {bilanDuration !== null && (
+          <div className="flex items-center justify-between text-sm bg-neutral-900 border border-neutral-800 rounded-md px-3 py-2">
+            <span className="text-neutral-500">Durée du bilan</span>
+            <span className="font-semibold text-neutral-100" style={{ fontFamily: "'IBM Plex Mono', monospace" }}>
+              {formatDuration(bilanDuration)}
+            </span>
+          </div>
+        )}
       </div>
     );
   }
@@ -1801,7 +1830,7 @@ export default function BilanVsav() {
               className="text-xs uppercase tracking-widest text-neutral-500"
               style={{ fontFamily: "'Barlow Condensed', sans-serif" }}
             >
-              Bilan VSAV · Protocole ABCDE
+              Bilan de l’équipier · Protocole ABCDE
             </div>
             <div className="text-lg font-bold" style={{ fontFamily: "'Barlow Condensed', sans-serif" }}>
               Bilan n°{patientNum}
