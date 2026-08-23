@@ -44,11 +44,22 @@ const BREATH_SIGNS = [
   { value: 'battement_ailes_nez', label: 'Battement des ailes du nez' },
   { value: 'balancement_thoraco_abdo', label: 'Balancement thoraco-abdominal' },
   { value: 'sueurs', label: 'Sueurs' },
+  { value: 'cyanose', label: 'Cyanose' },
+  { value: 'tirage', label: 'Tirage' },
+  { value: 'sifflements', label: 'Sifflements / sibilants' },
+  { value: 'toux', label: 'Toux' },
+  { value: 'difficulte_parler', label: 'Difficulté à parler' },
+  { value: 'paleur', label: 'Pâleur' },
 ];
 
 const CIRC_SIGNS = [
   { value: 'sueurs', label: 'Sueurs' },
   { value: 'marbrures', label: 'Marbrures' },
+  { value: 'paleur', label: 'Pâleur' },
+  { value: 'extremites_froides', label: 'Extrémités froides' },
+  { value: 'soif', label: 'Soif' },
+  { value: 'anxiete', label: 'Anxiété / agitation' },
+  { value: 'vertiges', label: 'Vertiges / malaise' },
 ];
 
 const HEMORRAGIE_SITES = [
@@ -60,6 +71,11 @@ const HEMORRAGIE_SITES = [
   { value: 'pelvien', label: 'Pelvien' },
   { value: 'membre_sup', label: 'Membre supérieur' },
   { value: 'membre_inf', label: 'Membre inférieur' },
+];
+
+const ENV_OPTIONS = [
+  { value: 'chaud', label: 'Chaud' },
+  { value: 'froid', label: 'Froid' },
 ];
 
 const optsToLabels = (opts) => Object.fromEntries(opts.map((o) => [o.value, o.label]));
@@ -79,6 +95,8 @@ const FIELD_LABELS = {
   hemorragie: 'Hémorragie',
   hemorragie_sites: 'Localisation(s) hémorragie',
   pci: 'PCI',
+  pc_repete: 'PC à répétition',
+  pc_nombre: 'Nombre de fois',
   etat: 'État de conscience',
   orientation: 'Orientation temps-espace',
   pupilles: 'Pupilles sym., taille normale, réactives',
@@ -86,6 +104,7 @@ const FIELD_LABELS = {
   sens_pieds: 'Sensibilité / motricité pieds',
   glycemie: 'Glycémie',
   temperature: 'Température',
+  victime_env: 'Victime retrouvée au',
   lesion: 'Lésion cachée',
   face: 'Face',
   arm: 'Arm (bras)',
@@ -103,8 +122,8 @@ const FIELD_LABELS = {
 const PAGE_FIELDS = {
   B: ['fr', 'fr_signes', 'spo2', 'spo2_mode'],
   C: ['fc', 'pa_gauche', 'pa_droite', 'pouls_sym', 'pouls_frappe', 'trc', 'signes', 'hemorragie', 'hemorragie_sites'],
-  D: ['pci', 'etat', 'orientation', 'pupilles', 'sens_mains', 'sens_pieds', 'glycemie'],
-  E: ['temperature', 'lesion'],
+  D: ['pci', 'pc_repete', 'pc_nombre', 'etat', 'orientation', 'pupilles', 'sens_mains', 'sens_pieds', 'glycemie'],
+  E: ['temperature', 'victime_env', 'lesion'],
   FAST: ['face', 'arm', 'speech', 'temps'],
   SAMPLER: ['sampler_s', 'sampler_a', 'sampler_m', 'sampler_p', 'sampler_l', 'sampler_e', 'sampler_r'],
 };
@@ -129,6 +148,7 @@ const VALUE_LABELS = {
   hemorragie: optsToLabels(OUI_NON),
   hemorragie_sites: optsToLabels(HEMORRAGIE_SITES),
   pci: optsToLabels(OUI_NON),
+  pc_repete: optsToLabels(OUI_NON),
   etat: {
     A: 'A — Alerte',
     V: 'V — Réagit à la voix',
@@ -139,6 +159,7 @@ const VALUE_LABELS = {
   pupilles: optsToLabels(OUI_NON),
   sens_mains: optsToLabels(OUI_NON),
   sens_pieds: optsToLabels(OUI_NON),
+  victime_env: optsToLabels(ENV_OPTIONS),
   lesion: optsToLabels(OUI_NON),
   face: optsToLabels(OUI_NON),
   arm: optsToLabels(OUI_NON),
@@ -172,6 +193,8 @@ const initialForm = () => ({
   },
   D: {
     pci: '',
+    pc_repete: '',
+    pc_nombre: '',
     etat: '',
     orientation: '',
     pupilles: '',
@@ -179,7 +202,7 @@ const initialForm = () => ({
     sens_pieds: '',
     glycemie: '',
   },
-  E: { temperature: '', lesion: '' },
+  E: { temperature: '', victime_env: '', lesion: '' },
   FAST: { face: '', arm: '', speech: '', temps: '' },
   SAMPLER: {
     sampler_s: '',
@@ -446,6 +469,11 @@ export default function BilanVsav() {
 
   const frTimer = useCountdown(60);
   const fcTimer = useCountdown(60);
+  const mainRef = useRef(null);
+
+  useEffect(() => {
+    if (mainRef.current) mainRef.current.scrollTop = 0;
+  }, [step]);
 
   useEffect(() => {
     loadHistory();
@@ -633,6 +661,30 @@ export default function BilanVsav() {
           <FieldCard label="PCI" filled={!!form.D.pci}>
             <ToggleGroup value={form.D.pci} onChange={(v) => updateField('D', 'pci', v)} options={OUI_NON} />
           </FieldCard>
+          <FieldCard label="PC à répétition" filled={!!form.D.pc_repete}>
+            <div className="flex flex-col gap-3 items-stretch">
+              <ToggleGroup
+                value={form.D.pc_repete}
+                onChange={(v) => {
+                  updateField('D', 'pc_repete', v);
+                  if (v !== 'oui') updateField('D', 'pc_nombre', '');
+                }}
+                options={OUI_NON}
+              />
+              {form.D.pc_repete === 'oui' && (
+                <div className="flex flex-col gap-1.5 pt-2 border-t border-neutral-800">
+                  <span className="text-xs text-neutral-500 uppercase tracking-wide">
+                    Nombre de fois
+                  </span>
+                  <InputBox
+                    value={form.D.pc_nombre}
+                    onChange={(v) => updateField('D', 'pc_nombre', v)}
+                    placeholder="ex. 2"
+                  />
+                </div>
+              )}
+            </div>
+          </FieldCard>
           <FieldCard label="État de conscience" filled={!!form.D.etat}>
             <ToggleGroup
               value={form.D.etat}
@@ -685,6 +737,13 @@ export default function BilanVsav() {
               value={form.E.temperature}
               onChange={(v) => updateField('E', 'temperature', v)}
               unit="°C"
+            />
+          </FieldCard>
+          <FieldCard label="Victime retrouvée au" filled={!!form.E.victime_env}>
+            <ToggleGroup
+              value={form.E.victime_env}
+              onChange={(v) => updateField('E', 'victime_env', v)}
+              options={ENV_OPTIONS}
             />
           </FieldCard>
           <FieldCard label="Lésion cachée" filled={!!form.E.lesion}>
@@ -835,7 +894,7 @@ export default function BilanVsav() {
         </div>
       </header>
 
-      <main className="flex-1 overflow-y-auto px-4 py-4">
+      <main ref={mainRef} className="flex-1 overflow-y-auto px-4 py-4">
         <div key={step} className="step-fade flex flex-col gap-3">
           {renderStepContent()}
         </div>
