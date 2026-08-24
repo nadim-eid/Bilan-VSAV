@@ -1081,136 +1081,146 @@ export default function BilanVsav() {
 
   // Calcule, à chaque rendu, les conduites à tenir applicables à la page en cours —
   // affichées en direct sous la saisie, jamais en popup, jamais sur le récap.
-  function getPageCatMessages(page) {
-    const items = [];
-    const add = (id, title, message) => items.push({ id, title, message });
-    const fromTable = (field, rawValue) => {
-      const dir = getAbnormalDirection(field, rawValue);
-      if (dir) add(`${field}_${dir}`, CAT_MESSAGES[field][dir].title, CAT_MESSAGES[field][dir].message);
-    };
+  function catItem(id, title, message) {
+    return [{ id, title, message }];
+  }
 
-    if (page === 'X') {
-      if (form.X.trauma === 'oui') {
-        add(
-          'trauma',
-          'Victime traumatisée',
-          'Maintien de la tête (ne pas mobiliser le rachis), pose d\u2019un collier cervical si disponible. Position : allongée en rectitude, ne pas laisser la victime bouger, alerter le 15.'
-        );
-      }
-      if (form.X.hemorragie === 'oui') {
-        add(
-          'hemorragie',
-          'Hémorragie',
-          'Compression manuelle directe sur la plaie (ou garrot si hémorragie massive incontrôlable). Position : allongée sur le dos, jambes légèrement surélevées si pas de contre-indication. Couvrir pour prévenir l\u2019hypothermie, oxygénothérapie si disponible, alerter le 15.'
-        );
-      }
-    }
-    if (page === 'A') {
-      if (form.A.obstruction === 'non') {
-        add(
-          'airway_obstruee',
-          'Voies aériennes obstruées',
-          'Désobstruction immédiate (claques dans le dos puis compressions abdominales si conscient ; LVA et recherche de corps étranger si inconscient).'
-        );
-      }
-    }
-    if (page === 'B') {
-      fromTable('fr', form.B.fr);
-      fromTable('spo2', form.B.spo2);
-      if (form.B.fr_signes.length > 0) {
-        add(
-          'resp_signes',
-          'Signes de détresse respiratoire',
-          'Position demi-assise, oxygénothérapie si disponible, surveillance rapprochée, alerter le 15.'
-        );
-      }
-    }
-    if (page === 'C') {
-      fromTable('fc', form.C.fc);
-      const paDir = getAbnormalDirection('pa_sys', form.C.pa_gauche_sys) || getAbnormalDirection('pa_sys', form.C.pa_droite_sys);
-      if (paDir) add(`pa_sys_${paDir}`, CAT_MESSAGES.pa_sys[paDir].title, CAT_MESSAGES.pa_sys[paDir].message);
-      if (form.C.pouls_sym === 'non') {
-        add(
-          'pouls_asym',
-          'Pouls asymétrique',
-          "Suspicion d'atteinte vasculaire : ne pas mobiliser le membre concerné, alerter le 15."
-        );
-      }
-      if (form.C.pouls_frappe === 'non') {
-        add(
-          'pouls_faible',
-          'Pouls mal frappé',
-          'Signe de choc possible : position d\u2019attente (allongée, jambes surélevées sauf contre-indication), alerter le 15.'
-        );
-      }
-      if (form.C.trc === '>2s') {
-        add(
-          'trc_long',
-          'TRC > 2 secondes',
-          'Signe de choc : position d\u2019attente (allongée, jambes surélevées sauf contre-indication), couvrir, alerter le 15.'
-        );
-      }
-      if (form.C.signes.length > 0) {
-        add(
-          'choc_signes',
-          'Signes de choc',
-          'Position d\u2019attente (allongée, jambes surélevées sauf contre-indication), couvrir, alerter le 15.'
-        );
-      }
-    }
-    if (page === 'D') {
-      const neuroDetresse =
-        form.D.pci === 'oui' ||
-        form.D.pc_repete === 'oui' ||
-        (form.D.etat && form.D.etat !== 'A') ||
-        form.D.orientation === 'non' ||
-        form.D.neuro_signes.length > 0 ||
-        form.D.pupilles === 'non' ||
-        form.D.sens_mains === 'non' ||
-        form.D.sens_pieds === 'non' ||
-        (form.D.eva && parseInt(form.D.eva, 10) >= 7) ||
-        isAbnormalField('glycemie', form.D.glycemie);
-      if (neuroDetresse) {
-        add(
-          'neuro_detresse',
-          'Détresse neurologique détectée',
-          'Position d\u2019attente : PLS si respiration spontanée et pas de trauma suspecté (sinon maintien tête). Ne pas laisser seul, surveillance neurologique rapprochée, alerter le 15.'
-        );
-      }
-    }
-    if (page === 'E') {
-      fromTable('temperature', form.E.temperature);
-      if (form.E.victime_env === 'froid') {
-        add(
-          'victime_froid',
-          'Victime en ambiance froide',
-          'Position d\u2019attente : réchauffement progressif, couverture, isolation du sol, retirer les vêtements mouillés.'
-        );
-      }
-      if (form.E.lesion === 'oui') {
-        add(
-          'lesion_cachee',
-          'Lésion cachée détectée',
-          'Réexaminer entièrement la victime, couvrir/protéger la zone, alerter le 15 si nécessaire.'
-        );
-      }
-    }
-    if (page === 'BRULURE') {
-      if (form.BRULURE.brulure === 'oui') {
-        const entry = BURN_CAT_BY_TYPE[form.BRULURE.brulure_type] || BURN_CAT_DEFAULT;
-        add('brulure', entry.title, entry.message);
-      }
-    }
-    if (page === 'FAST') {
-      if (form.FAST.face === 'oui' || form.FAST.arm === 'oui' || form.FAST.speech === 'oui') {
-        add(
-          'fast_positif',
-          'Signe FAST positif — suspicion AVC',
-          "Noter précisément l'heure d'apparition des signes, alerter le 15 en urgence, ne rien donner par voie orale."
-        );
-      }
-    }
-    return items;
+  function getSimpleCat(field, rawValue) {
+    const dir = getAbnormalDirection(field, rawValue);
+    if (!dir) return [];
+    return catItem(`${field}_${dir}`, CAT_MESSAGES[field][dir].title, CAT_MESSAGES[field][dir].message);
+  }
+
+  function getTraumaCat() {
+    if (form.X.trauma !== 'oui') return [];
+    return catItem(
+      'trauma',
+      'Victime traumatisée',
+      'Maintien de la tête (ne pas mobiliser le rachis), pose d\u2019un collier cervical si disponible. Position : allongée en rectitude, ne pas laisser la victime bouger, alerter le 15.'
+    );
+  }
+
+  function getHemorragieCat() {
+    if (form.X.hemorragie !== 'oui') return [];
+    return catItem(
+      'hemorragie',
+      'Hémorragie',
+      'Compression manuelle directe sur la plaie (ou garrot si hémorragie massive incontrôlable). Position : allongée sur le dos, jambes légèrement surélevées si pas de contre-indication. Couvrir pour prévenir l\u2019hypothermie, oxygénothérapie si disponible, alerter le 15.'
+    );
+  }
+
+  function getObstructionCat() {
+    if (form.A.obstruction !== 'non') return [];
+    return catItem(
+      'airway_obstruee',
+      'Voies aériennes obstruées',
+      'Désobstruction immédiate (claques dans le dos puis compressions abdominales si conscient ; LVA et recherche de corps étranger si inconscient).'
+    );
+  }
+
+  function getRespSignesCat() {
+    if (form.B.fr_signes.length === 0) return [];
+    return catItem(
+      'resp_signes',
+      'Signes de détresse respiratoire',
+      'Position demi-assise, oxygénothérapie si disponible, surveillance rapprochée, alerter le 15.'
+    );
+  }
+
+  function getPaSysCat() {
+    const dir = getAbnormalDirection('pa_sys', form.C.pa_gauche_sys) || getAbnormalDirection('pa_sys', form.C.pa_droite_sys);
+    if (!dir) return [];
+    return catItem(`pa_sys_${dir}`, CAT_MESSAGES.pa_sys[dir].title, CAT_MESSAGES.pa_sys[dir].message);
+  }
+
+  function getPoulsSymCat() {
+    if (form.C.pouls_sym !== 'non') return [];
+    return catItem(
+      'pouls_asym',
+      'Pouls asymétrique',
+      "Suspicion d'atteinte vasculaire : ne pas mobiliser le membre concerné, alerter le 15."
+    );
+  }
+
+  function getPoulsFrappeCat() {
+    if (form.C.pouls_frappe !== 'non') return [];
+    return catItem(
+      'pouls_faible',
+      'Pouls mal frappé',
+      'Signe de choc possible : position d\u2019attente (allongée, jambes surélevées sauf contre-indication), alerter le 15.'
+    );
+  }
+
+  function getTrcCat() {
+    if (form.C.trc !== '>2s') return [];
+    return catItem(
+      'trc_long',
+      'TRC > 2 secondes',
+      'Signe de choc : position d\u2019attente (allongée, jambes surélevées sauf contre-indication), couvrir, alerter le 15.'
+    );
+  }
+
+  function getChocSignesCat() {
+    if (form.C.signes.length === 0) return [];
+    return catItem(
+      'choc_signes',
+      'Signes de choc',
+      'Position d\u2019attente (allongée, jambes surélevées sauf contre-indication), couvrir, alerter le 15.'
+    );
+  }
+
+  function getNeuroDetresseCat() {
+    const neuroDetresse =
+      form.D.pci === 'oui' ||
+      form.D.pc_repete === 'oui' ||
+      (form.D.etat && form.D.etat !== 'A') ||
+      form.D.orientation === 'non' ||
+      form.D.neuro_signes.length > 0 ||
+      form.D.pupilles === 'non' ||
+      form.D.sens_mains === 'non' ||
+      form.D.sens_pieds === 'non' ||
+      (form.D.eva && parseInt(form.D.eva, 10) >= 7) ||
+      isAbnormalField('glycemie', form.D.glycemie);
+    if (!neuroDetresse) return [];
+    return catItem(
+      'neuro_detresse',
+      'Détresse neurologique détectée',
+      'Position d\u2019attente : PLS si respiration spontanée et pas de trauma suspecté (sinon maintien tête). Ne pas laisser seul, surveillance neurologique rapprochée, alerter le 15.'
+    );
+  }
+
+  function getVictimeFroidCat() {
+    if (form.E.victime_env !== 'froid') return [];
+    return catItem(
+      'victime_froid',
+      'Victime en ambiance froide',
+      'Position d\u2019attente : réchauffement progressif, couverture, isolation du sol, retirer les vêtements mouillés.'
+    );
+  }
+
+  function getLesionCat() {
+    if (form.E.lesion !== 'oui') return [];
+    return catItem(
+      'lesion_cachee',
+      'Lésion cachée détectée',
+      'Réexaminer entièrement la victime, couvrir/protéger la zone, alerter le 15 si nécessaire.'
+    );
+  }
+
+  function getBruleCat() {
+    if (form.BRULURE.brulure !== 'oui') return [];
+    const entry = BURN_CAT_BY_TYPE[form.BRULURE.brulure_type] || BURN_CAT_DEFAULT;
+    return catItem('brulure', entry.title, entry.message);
+  }
+
+  function getFastCat() {
+    if (form.FAST.face !== 'oui' && form.FAST.arm !== 'oui' && form.FAST.speech !== 'oui') return [];
+    return catItem(
+      'fast_positif',
+      'Signe FAST positif — suspicion AVC',
+      "Noter précisément l'heure d'apparition des signes, alerter le 15 en urgence, ne rien donner par voie orale."
+    );
+
   }
 
   function goNext() {
@@ -1331,6 +1341,7 @@ export default function BilanVsav() {
               options={OUI_NON}
             />
           </FieldCard>
+          <InlineCatBox items={getTraumaCat()} />
           <FieldCard label="Hémorragie" filled={!!form.X.hemorragie}>
             <div className="flex flex-col gap-3 items-stretch">
               <ToggleGroup
@@ -1355,6 +1366,7 @@ export default function BilanVsav() {
               )}
             </div>
           </FieldCard>
+          <InlineCatBox items={getHemorragieCat()} />
         </>
       );
     if (s === 'A')
@@ -1367,6 +1379,7 @@ export default function BilanVsav() {
               options={OUI_NON}
             />
           </FieldCard>
+          <InlineCatBox items={getObstructionCat()} />
         </>
       );
     if (s === 'B')
@@ -1384,6 +1397,7 @@ export default function BilanVsav() {
               />
             </div>
           </FieldCard>
+          <InlineCatBox items={getSimpleCat('fr', form.B.fr)} />
           <FieldCard label="Signes associés" filled={form.B.fr_signes.length > 0}>
             <MultiToggleGroup
               value={form.B.fr_signes}
@@ -1391,6 +1405,7 @@ export default function BilanVsav() {
               options={BREATH_SIGNS}
             />
           </FieldCard>
+          <InlineCatBox items={getRespSignesCat()} />
           <FieldCard label="SpO2 (SAT)" filled={!!form.B.spo2}>
             <div className="flex flex-wrap items-center gap-3">
               <InputBox
@@ -1407,6 +1422,7 @@ export default function BilanVsav() {
               />
             </div>
           </FieldCard>
+          <InlineCatBox items={getSimpleCat('spo2', form.B.spo2)} />
         </>
       );
     if (s === 'C')
@@ -1424,6 +1440,7 @@ export default function BilanVsav() {
               />
             </div>
           </FieldCard>
+          <InlineCatBox items={getSimpleCat('fc', form.C.fc)} />
           <FieldCard
             label="Pression artérielle bras gauche"
             filled={!!form.C.pa_gauche_sys || !!form.C.pa_gauche_dia}
@@ -1484,6 +1501,7 @@ export default function BilanVsav() {
               </div>
             </div>
           </FieldCard>
+          <InlineCatBox items={getPaSysCat()} />
           <FieldCard label="Pouls symétrique" filled={!!form.C.pouls_sym}>
             <ToggleGroup
               value={form.C.pouls_sym}
@@ -1491,6 +1509,7 @@ export default function BilanVsav() {
               options={OUI_NON}
             />
           </FieldCard>
+          <InlineCatBox items={getPoulsSymCat()} />
           <FieldCard label="Pouls bien frappé" filled={!!form.C.pouls_frappe}>
             <ToggleGroup
               value={form.C.pouls_frappe}
@@ -1498,6 +1517,7 @@ export default function BilanVsav() {
               options={OUI_NON}
             />
           </FieldCard>
+          <InlineCatBox items={getPoulsFrappeCat()} />
           <FieldCard label="TRC" filled={!!form.C.trc}>
             <ToggleGroup
               value={form.C.trc}
@@ -1505,6 +1525,7 @@ export default function BilanVsav() {
               options={TRC_OPTIONS}
             />
           </FieldCard>
+          <InlineCatBox items={getTrcCat()} />
           <FieldCard label="Signes associés" filled={form.C.signes.length > 0}>
             <MultiToggleGroup
               value={form.C.signes}
@@ -1512,6 +1533,7 @@ export default function BilanVsav() {
               options={CIRC_SIGNS}
             />
           </FieldCard>
+          <InlineCatBox items={getChocSignesCat()} />
         </>
       );
     if (s === 'D')
@@ -1601,15 +1623,21 @@ export default function BilanVsav() {
             />
           </FieldCard>
           <FieldCard label="Glycémie" filled={!!form.D.glycemie}>
-            <InputBox
-              value={form.D.glycemie}
-              onChange={(v) => updateField('D', 'glycemie', v)}
-              abnormal={isAbnormalField('glycemie', form.D.glycemie)}
-              unit={detectGlycemieUnit(form.D.glycemie)}
-              placeholder="0,85 ou 85"
-              numeric="decimal"
-            />
+            <div className="flex flex-col gap-1">
+              <InputBox
+                value={form.D.glycemie}
+                onChange={(v) => updateField('D', 'glycemie', v)}
+                abnormal={isAbnormalField('glycemie', form.D.glycemie)}
+                unit={form.D.glycemie ? detectGlycemieUnit(form.D.glycemie) : undefined}
+                placeholder="0,85 ou 85"
+                numeric="decimal"
+              />
+              {!form.D.glycemie && (
+                <span className="text-xs text-neutral-600 italic">Détection d'unité automatique</span>
+              )}
+            </div>
           </FieldCard>
+          <InlineCatBox items={getNeuroDetresseCat()} />
         </>
       );
     if (s === 'E')
@@ -1624,6 +1652,7 @@ export default function BilanVsav() {
               numeric="decimal"
             />
           </FieldCard>
+          <InlineCatBox items={getSimpleCat('temperature', form.E.temperature)} />
           <FieldCard label="Victime retrouvée au" filled={!!form.E.victime_env}>
             <ToggleGroup
               value={form.E.victime_env}
@@ -1631,6 +1660,7 @@ export default function BilanVsav() {
               options={ENV_OPTIONS}
             />
           </FieldCard>
+          <InlineCatBox items={getVictimeFroidCat()} />
           <FieldCard label="Lésion cachée" filled={!!form.E.lesion}>
             <ToggleGroup
               value={form.E.lesion}
@@ -1638,6 +1668,7 @@ export default function BilanVsav() {
               options={OUI_NON}
             />
           </FieldCard>
+          <InlineCatBox items={getLesionCat()} />
         </>
       );
     if (s === 'BRULURE')
@@ -1724,6 +1755,7 @@ export default function BilanVsav() {
               )}
             </div>
           </FieldCard>
+          <InlineCatBox items={getBruleCat()} />
         </>
       );
     if (s === 'FAST')
@@ -1750,6 +1782,7 @@ export default function BilanVsav() {
               options={OUI_NON}
             />
           </FieldCard>
+          <InlineCatBox items={getFastCat()} />
           <FieldCard label="Heure d'apparition" filled={!!form.FAST.temps}>
             <InputBox
               value={form.FAST.temps}
@@ -1893,7 +1926,6 @@ export default function BilanVsav() {
       <main ref={mainRef} className="flex-1 overflow-y-auto px-4 py-4">
         <div key={step} className="step-fade flex flex-col gap-3">
           {renderStepContent()}
-          <InlineCatBox items={getPageCatMessages(STEPS[step])} />
         </div>
       </main>
 
