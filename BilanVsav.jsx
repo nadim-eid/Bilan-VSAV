@@ -95,6 +95,30 @@ const CAT_MESSAGES = {
   },
 };
 
+// Conduites à tenir spécifiques selon le type de brûlure
+const BURN_CAT_BY_TYPE = {
+  thermique: {
+    title: 'Brûlure thermique',
+    message: "Refroidir immédiatement à l'eau tempérée (15-20 °C) pendant 15-20 min si moins de 2h, ne pas percer les phlyctènes, couvrir d'un pansement stérile, alerter le 15.",
+  },
+  electrique: {
+    title: 'Brûlure électrique',
+    message: "Ne pas toucher la victime avant coupure du courant, rechercher les points d'entrée et de sortie, surveiller (risque de trouble du rythme cardiaque), alerter le 15 systématiquement.",
+  },
+  chimique: {
+    title: 'Brûlure chimique',
+    message: "Retirer les vêtements contaminés, rincer abondamment à l'eau claire pendant au moins 20 min (sauf produit réagissant à l'eau), ne pas neutraliser le produit, alerter le 15.",
+  },
+  radiologique: {
+    title: 'Brûlure radiologique',
+    message: 'Éloigner la victime de la source si possible sans se mettre en danger, alerter le 15 et les services spécialisés, ne pas toucher sans protection adaptée.',
+  },
+};
+const BURN_CAT_DEFAULT = {
+  title: 'Brûlure',
+  message: "Refroidir à l'eau tempérée (15-20 °C) pendant 15-20 min si moins de 2h, ne pas percer les phlyctènes, couvrir d'un pansement stérile, alerter le 15.",
+};
+
 const OUI_NON = [{ value: 'oui', label: 'Oui' }, { value: 'non', label: 'Non' }];
 const SPO2_MODE = [{ value: 'air', label: 'Sous air' }, { value: 'o2', label: 'Sous O2' }];
 const TRC_OPTIONS = [{ value: '<2s', label: '< 2 s' }, { value: '>2s', label: '> 2 s' }];
@@ -758,7 +782,7 @@ function buildRecapLines(data) {
       .filter((r) => r.v !== null);
     lines.push(`${PAGE_TITLES[page] || page}`);
     if (rows.length === 0) {
-      lines.push('  Non renseigné');
+      lines.push('  Bilan non effectué / non renseigné');
       lines.push('');
       return;
     }
@@ -936,7 +960,7 @@ function RecapView({ data }) {
             </h3>
           </div>
           {rows.length === 0 ? (
-            <p className="text-sm text-neutral-600 italic px-1">Non renseigné</p>
+            <p className="text-sm text-neutral-600 italic px-1">Bilan non effectué / non renseigné</p>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
               {rows.map(({ f, v }) => (
@@ -1084,62 +1108,24 @@ export default function BilanVsav() {
       }
     }
     if (page === 'D') {
-      if (form.D.pci === 'oui') {
+      const neuroDetresse =
+        form.D.pci === 'oui' ||
+        form.D.pc_repete === 'oui' ||
+        (form.D.etat && form.D.etat !== 'A') ||
+        form.D.orientation === 'non' ||
+        form.D.neuro_signes.length > 0 ||
+        form.D.pupilles === 'non' ||
+        form.D.sens_mains === 'non' ||
+        form.D.sens_pieds === 'non' ||
+        (form.D.eva && parseInt(form.D.eva, 10) >= 7) ||
+        isAbnormalField('glycemie', form.D.glycemie);
+      if (neuroDetresse) {
         pushCat(
-          'pci',
-          'Perte de connaissance',
-          'Position d\u2019attente : PLS si respiration spontanée et pas de trauma suspecté (sinon maintien tête), surveillance rapprochée, alerter le 15.'
+          'neuro_detresse',
+          'Détresse neurologique détectée',
+          'Position d\u2019attente : PLS si respiration spontanée et pas de trauma suspecté (sinon maintien tête). Ne pas laisser seul, surveillance neurologique rapprochée, alerter le 15.'
         );
       }
-      if (form.D.pc_repete === 'oui') {
-        pushCat(
-          'pc_repete',
-          'Pertes de connaissance répétées',
-          'Alerter le 15, transport médicalisé à prévoir, surveiller étroitement.'
-        );
-      }
-      if (form.D.etat && form.D.etat !== 'A') {
-        pushCat(
-          'etat_conscience',
-          'Trouble de la conscience',
-          'Position d\u2019attente : PLS si respiration spontanée et pas de trauma suspecté, surveillance rapprochée, alerter le 15.'
-        );
-      }
-      if (form.D.orientation === 'non') {
-        pushCat(
-          'orientation',
-          "Trouble de l'orientation",
-          'Surveillance neurologique rapprochée, alerter le 15.'
-        );
-      }
-      if (form.D.neuro_signes.length > 0) {
-        pushCat(
-          'neuro_signes',
-          'Signes neurologiques associés',
-          'Position d\u2019attente : allongée, surveillance neurologique rapprochée, alerter le 15.'
-        );
-      }
-      if (form.D.pupilles === 'non') {
-        pushCat(
-          'pupilles',
-          'Anomalie pupillaire',
-          "Suspicion d'atteinte neurologique : alerter le 15 en urgence."
-        );
-      }
-      if (form.D.sens_mains === 'non') {
-        pushCat('sens_mains', 'Déficit sensitivo-moteur (mains)', 'Ne pas mobiliser, immobiliser, alerter le 15.');
-      }
-      if (form.D.sens_pieds === 'non') {
-        pushCat('sens_pieds', 'Déficit sensitivo-moteur (pieds)', 'Ne pas mobiliser, immobiliser, alerter le 15.');
-      }
-      if (form.D.eva && parseInt(form.D.eva, 10) >= 7) {
-        pushCat(
-          'douleur_intense',
-          'Douleur intense (EVA ≥ 7)',
-          'Installer en position antalgique, alerter le 15 pour prise en charge de la douleur.'
-        );
-      }
-      checkAndAlert('glycemie', form.D.glycemie);
     }
     if (page === 'E') {
       checkAndAlert('temperature', form.E.temperature);
@@ -1158,10 +1144,16 @@ export default function BilanVsav() {
         );
       }
     }
+    if (page === 'BRULURE') {
+      if (form.BRULURE.brulure === 'oui') {
+        const entry = BURN_CAT_BY_TYPE[form.BRULURE.brulure_type] || BURN_CAT_DEFAULT;
+        pushCat('brulure', entry.title, entry.message);
+      }
+    }
   }
 
   function goNext() {
-    if (['B', 'C', 'D', 'E'].includes(STEPS[step])) {
+    if (['B', 'C', 'D', 'E', 'BRULURE'].includes(STEPS[step])) {
       checkPageOnNext(STEPS[step]);
     }
     setStep((s) => Math.min(s + 1, STEPS.length - 1));
@@ -1667,13 +1659,6 @@ export default function BilanVsav() {
                     updateField('BRULURE', 'brulure_etendue', '');
                     updateField('BRULURE', 'brulure_loc', '');
                     updateField('BRULURE', 'brulure_type', '');
-                  }
-                  if (v === 'oui') {
-                    pushCat(
-                      'brulure',
-                      'Brûlure',
-                      "Refroidir à l'eau tempérée (15-20 °C) pendant 15-20 min si moins de 2h, ne pas percer les phlyctènes, couvrir d'un pansement stérile, alerter le 15."
-                    );
                   }
                 }}
                 options={OUI_NON}
