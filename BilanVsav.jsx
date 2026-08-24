@@ -317,16 +317,6 @@ const FIELD_LABELS = {
   speech: 'Speech (parole)',
   temps: "Heure d'apparition",
   sampler_s: 'S — Signes et symptômes',
-  pqrst_p: 'PQRST — P (Provoqué / Palliatif)',
-  pqrst_p_text: 'PQRST — P (détail)',
-  pqrst_q: 'PQRST — Q (Qualité)',
-  pqrst_q_text: 'PQRST — Q (détail)',
-  pqrst_r: 'PQRST — R (Région / Irradiation)',
-  pqrst_r_text: 'PQRST — R (détail)',
-  pqrst_s: 'PQRST — S (Sévérité)',
-  pqrst_s_text: 'PQRST — S (détail)',
-  pqrst_t: 'PQRST — T (Temps)',
-  pqrst_t_text: 'PQRST — T (détail)',
   sampler_a_choices: "A — Type d'allergie",
   sampler_a: 'A — Allergies (détail)',
   sampler_m: 'M — Médicaments',
@@ -350,16 +340,6 @@ const PAGE_FIELDS = {
   FAST: ['face', 'arm', 'speech', 'temps'],
   SAMPLER: [
     'sampler_s',
-    'pqrst_p',
-    'pqrst_p_text',
-    'pqrst_q',
-    'pqrst_q_text',
-    'pqrst_r',
-    'pqrst_r_text',
-    'pqrst_s',
-    'pqrst_s_text',
-    'pqrst_t',
-    'pqrst_t_text',
     'sampler_a_choices',
     'sampler_a',
     'sampler_m',
@@ -381,7 +361,6 @@ const UNITS = {
   pa_gauche: 'mmHg',
   pa_droite: 'mmHg',
   eva: '/10',
-  pqrst_s: '/10',
   brulure_etendue: '% SC',
 };
 
@@ -410,11 +389,6 @@ const VALUE_LABELS = {
   sampler_a_choices: optsToLabels(ALLERGY_OPTIONS),
   sampler_p_choices: optsToLabels(ANTECEDENTS_OPTIONS),
   sampler_l_choice: optsToLabels(REPAS_OPTIONS),
-  pqrst_p: optsToLabels(PQRST_P_OPTIONS),
-  pqrst_q: optsToLabels(PQRST_Q_OPTIONS),
-  pqrst_r: optsToLabels(PQRST_R_OPTIONS),
-  pqrst_s: optsToLabels(EVA_OPTIONS),
-  pqrst_t: optsToLabels(PQRST_T_OPTIONS),
   fr_signes: optsToLabels(BREATH_SIGNS),
   spo2_mode: optsToLabels(SPO2_MODE),
   pouls_sym: optsToLabels(OUI_NON),
@@ -504,17 +478,7 @@ const initialForm = () => ({
   FAST: { face: '', arm: '', speech: '', temps: '' },
   SAMPLER: {
     sampler_s: '',
-    pqrst_active: '',
-    pqrst_p: [],
-    pqrst_p_text: '',
-    pqrst_q: [],
-    pqrst_q_text: '',
-    pqrst_r: [],
-    pqrst_r_text: '',
-    pqrst_s: '',
-    pqrst_s_text: '',
-    pqrst_t: [],
-    pqrst_t_text: '',
+    pqrst_list: [],
     sampler_a_choices: [],
     sampler_a: '',
     sampler_m: '',
@@ -875,6 +839,29 @@ function getRawValue(page, field, data) {
   return data[page][field];
 }
 
+// Transforme une entrée PQRST en lignes numérotées (n.1 P, n.2 Q, n.3 R, n.4 S, n.5 T)
+// pour qu'elle reste clairement identifiable dans le récap même s'il y en a plusieurs.
+function formatPqrstEntry(entry, n) {
+  const specs = [
+    { num: `${n}.1`, label: 'P — Provoqué / Palliatif', choice: entry.p, text: entry.p_text, opts: PQRST_P_OPTIONS, single: false },
+    { num: `${n}.2`, label: 'Q — Qualité', choice: entry.q, text: entry.q_text, opts: PQRST_Q_OPTIONS, single: false },
+    { num: `${n}.3`, label: 'R — Région / Irradiation', choice: entry.r, text: entry.r_text, opts: PQRST_R_OPTIONS, single: false },
+    { num: `${n}.4`, label: 'S — Sévérité', choice: entry.s, text: entry.s_text, opts: EVA_OPTIONS, single: true },
+    { num: `${n}.5`, label: 'T — Temps', choice: entry.t, text: entry.t_text, opts: PQRST_T_OPTIONS, single: false },
+  ];
+  return specs
+    .map((spec) => {
+      const choiceLabel = spec.single
+        ? (spec.opts.find((o) => o.value === spec.choice)?.label || spec.choice || '')
+        : (spec.choice && spec.choice.length
+            ? spec.choice.map((v) => spec.opts.find((o) => o.value === v)?.label || v).join(', ')
+            : '');
+      const value = [choiceLabel, spec.text].filter(Boolean).join(' — ');
+      return { num: spec.num, label: spec.label, value };
+    })
+    .filter((row) => row.value);
+}
+
 // Construit le contenu texte du bilan (réutilisé pour le PDF et le SMS)
 function buildRecapLines(data) {
   const lines = [];
@@ -889,13 +876,21 @@ function buildRecapLines(data) {
     const rows = PAGE_FIELDS[page]
       .map((f) => ({ f, v: formatValue(f, getRawValue(page, f, data)) }))
       .filter((r) => r.v !== null);
+    const pqrstList = page === 'SAMPLER' ? data.SAMPLER.pqrst_list || [] : [];
     lines.push(`${PAGE_TITLES[page] || page}`);
-    if (rows.length === 0) {
+    if (rows.length === 0 && pqrstList.length === 0) {
       lines.push('  Bilan non effectué / non renseigné');
       lines.push('');
       return;
     }
     rows.forEach(({ f, v }) => lines.push(`  ${FIELD_LABELS[f]} : ${v}`));
+    if (pqrstList.length > 0) {
+      pqrstList.forEach((entry, i) => {
+        const n = i + 1;
+        lines.push(`  PQRST ${n}`);
+        formatPqrstEntry(entry, n).forEach((row) => lines.push(`    ${row.num} ${row.label} : ${row.value}`));
+      });
+    }
     if (
       page === 'FAST' &&
       data.FAST.face === 'non' &&
@@ -1029,7 +1024,8 @@ function RecapView({ data }) {
     const rows = PAGE_FIELDS[page]
       .map((f) => ({ f, v: formatValue(f, getRawValue(page, f, data)) }))
       .filter((r) => r.v !== null);
-    return { page, rows };
+    const pqrstList = page === 'SAMPLER' ? data.SAMPLER.pqrst_list || [] : [];
+    return { page, rows, pqrstList };
   });
 
   return (
@@ -1052,7 +1048,7 @@ function RecapView({ data }) {
           )}
         </div>
       )}
-      {sections.map(({ page, rows }) => (
+      {sections.map(({ page, rows, pqrstList }) => (
         <div key={page}>
           <div className="flex items-center gap-2 mb-2">
             <span
@@ -1068,25 +1064,66 @@ function RecapView({ data }) {
               {PAGE_TITLES[page]}
             </h3>
           </div>
-          {rows.length === 0 ? (
+          {rows.length === 0 && pqrstList.length === 0 ? (
             <p className="text-sm text-neutral-600 italic px-1">Bilan non effectué / non renseigné</p>
           ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-              {rows.map(({ f, v }) => (
-                <div
-                  key={f}
-                  className="flex items-center justify-between bg-neutral-900 border border-neutral-800 rounded-md px-3 py-2 gap-3"
-                >
-                  <span className="text-xs text-neutral-500">{FIELD_LABELS[f]}</span>
-                  <span
-                    className="text-sm text-neutral-100 text-right"
-                    style={{ fontFamily: "'IBM Plex Mono', monospace" }}
-                  >
-                    {v}
-                  </span>
+            <>
+              {rows.length > 0 && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  {rows.map(({ f, v }) => (
+                    <div
+                      key={f}
+                      className="flex items-center justify-between bg-neutral-900 border border-neutral-800 rounded-md px-3 py-2 gap-3"
+                    >
+                      <span className="text-xs text-neutral-500">{FIELD_LABELS[f]}</span>
+                      <span
+                        className="text-sm text-neutral-100 text-right"
+                        style={{ fontFamily: "'IBM Plex Mono', monospace" }}
+                      >
+                        {v}
+                      </span>
+                    </div>
+                  ))}
                 </div>
-              ))}
-            </div>
+              )}
+              {pqrstList.length > 0 && (
+                <div className="flex flex-col gap-3 mt-2">
+                  {pqrstList.map((entry, i) => {
+                    const n = i + 1;
+                    const pqrstRows = formatPqrstEntry(entry, n);
+                    return (
+                      <div key={entry.id} className="border-l-2 pl-3" style={{ borderColor: ACCENT }}>
+                        <div
+                          className="text-sm font-bold text-neutral-100 mb-1"
+                          style={{ fontFamily: "'Barlow Condensed', sans-serif" }}
+                        >
+                          PQRST {n}
+                        </div>
+                        {pqrstRows.length === 0 ? (
+                          <p className="text-xs text-neutral-600 italic">Non renseigné</p>
+                        ) : (
+                          <div className="flex flex-col gap-1">
+                            {pqrstRows.map((row) => (
+                              <div key={row.num} className="flex items-start justify-between gap-3 text-xs">
+                                <span className="text-neutral-500 shrink-0">
+                                  {row.num} {row.label}
+                                </span>
+                                <span
+                                  className="text-neutral-100 text-right"
+                                  style={{ fontFamily: "'IBM Plex Mono', monospace" }}
+                                >
+                                  {row.value}
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </>
           )}
           {page === 'FAST' &&
             data.FAST.face === 'non' &&
@@ -1164,6 +1201,48 @@ export default function BilanVsav() {
   function updateField(page, field, value) {
     if (bilanStartRef.current === null) bilanStartRef.current = Date.now();
     setForm((f) => ({ ...f, [page]: { ...f[page], [field]: value } }));
+    if (saved) setSaved(false);
+  }
+
+  function addPqrst() {
+    if (bilanStartRef.current === null) bilanStartRef.current = Date.now();
+    const entry = {
+      id: `pqrst_${Date.now()}`,
+      p: [],
+      p_text: '',
+      q: [],
+      q_text: '',
+      r: [],
+      r_text: '',
+      s: '',
+      s_text: '',
+      t: [],
+      t_text: '',
+    };
+    setForm((f) => ({
+      ...f,
+      SAMPLER: { ...f.SAMPLER, pqrst_list: [...f.SAMPLER.pqrst_list, entry] },
+    }));
+    if (saved) setSaved(false);
+  }
+
+  function removePqrst(id) {
+    setForm((f) => ({
+      ...f,
+      SAMPLER: { ...f.SAMPLER, pqrst_list: f.SAMPLER.pqrst_list.filter((p) => p.id !== id) },
+    }));
+    if (saved) setSaved(false);
+  }
+
+  function updatePqrstField(id, field, value) {
+    if (bilanStartRef.current === null) bilanStartRef.current = Date.now();
+    setForm((f) => ({
+      ...f,
+      SAMPLER: {
+        ...f.SAMPLER,
+        pqrst_list: f.SAMPLER.pqrst_list.map((p) => (p.id === id ? { ...p, [field]: value } : p)),
+      },
+    }));
     if (saved) setSaved(false);
   }
 
@@ -1796,6 +1875,7 @@ export default function BilanVsav() {
                 }}
                 options={OUI_NON}
               />
+              <InlineCatBox items={getBruleCat()} />
               {form.BRULURE.brulure === 'oui' && (
                 <div className="flex flex-col gap-4 pt-2 border-t border-neutral-800">
                   <div className="flex flex-col gap-1.5">
@@ -1861,7 +1941,6 @@ export default function BilanVsav() {
               )}
             </div>
           </FieldCard>
-          <InlineCatBox items={getBruleCat()} />
         </>
       );
     if (s === 'FAST')
@@ -1907,75 +1986,82 @@ export default function BilanVsav() {
             value={form.SAMPLER.sampler_s}
             onChange={(v) => updateField('SAMPLER', 'sampler_s', v)}
           />
-          <button
-            onClick={() =>
-              updateField('SAMPLER', 'pqrst_active', form.SAMPLER.pqrst_active === 'oui' ? '' : 'oui')
-            }
-            className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide px-3 py-2 rounded-md self-start"
-            style={
-              form.SAMPLER.pqrst_active === 'oui'
-                ? { backgroundColor: ACCENT, color: '#fff' }
-                : { backgroundColor: '#262626', color: '#e5e5e5' }
-            }
-          >
-            Douleur (PQRST)
-          </button>
-          {form.SAMPLER.pqrst_active === 'oui' && (
-            <div className="bg-neutral-900 border border-neutral-800 rounded-lg p-4 flex flex-col gap-4">
-              <h4
-                className="text-sm font-bold uppercase tracking-wide text-neutral-300"
-                style={{ fontFamily: "'Barlow Condensed', sans-serif" }}
-              >
-                PQRST — Douleur
-              </h4>
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-semibold text-neutral-400 uppercase tracking-wide">
+              Douleur(s) — PQRST
+            </span>
+            <button
+              onClick={addPqrst}
+              className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide px-3 py-1.5 rounded-md"
+              style={{ backgroundColor: ACCENT, color: '#fff' }}
+            >
+              <Check size={13} /> Ajouter un PQRST
+            </button>
+          </div>
+          {form.SAMPLER.pqrst_list.map((entry, idx) => (
+            <div key={entry.id} className="bg-neutral-900 border border-neutral-800 rounded-lg p-4 flex flex-col gap-4">
+              <div className="flex items-center justify-between">
+                <h4
+                  className="text-sm font-bold uppercase tracking-wide text-neutral-300"
+                  style={{ fontFamily: "'Barlow Condensed', sans-serif" }}
+                >
+                  PQRST {idx + 1}
+                </h4>
+                <button
+                  onClick={() => removePqrst(entry.id)}
+                  className="flex items-center gap-1 text-xs text-red-400 border border-neutral-800 rounded-md px-2 py-1 hover:border-red-800"
+                >
+                  <Trash2 size={13} /> Supprimer
+                </button>
+              </div>
               <PqrstRow
                 letter="P"
                 label="Provoqué / Palliatif"
                 options={PQRST_P_OPTIONS}
-                value={form.SAMPLER.pqrst_p}
-                onChange={(v) => updateField('SAMPLER', 'pqrst_p', v)}
-                textValue={form.SAMPLER.pqrst_p_text}
-                onTextChange={(v) => updateField('SAMPLER', 'pqrst_p_text', v)}
+                value={entry.p}
+                onChange={(v) => updatePqrstField(entry.id, 'p', v)}
+                textValue={entry.p_text}
+                onTextChange={(v) => updatePqrstField(entry.id, 'p_text', v)}
               />
               <PqrstRow
                 letter="Q"
                 label="Qualité"
                 options={PQRST_Q_OPTIONS}
-                value={form.SAMPLER.pqrst_q}
-                onChange={(v) => updateField('SAMPLER', 'pqrst_q', v)}
-                textValue={form.SAMPLER.pqrst_q_text}
-                onTextChange={(v) => updateField('SAMPLER', 'pqrst_q_text', v)}
+                value={entry.q}
+                onChange={(v) => updatePqrstField(entry.id, 'q', v)}
+                textValue={entry.q_text}
+                onTextChange={(v) => updatePqrstField(entry.id, 'q_text', v)}
               />
               <PqrstRow
                 letter="R"
                 label="Région / Irradiation"
                 options={PQRST_R_OPTIONS}
-                value={form.SAMPLER.pqrst_r}
-                onChange={(v) => updateField('SAMPLER', 'pqrst_r', v)}
-                textValue={form.SAMPLER.pqrst_r_text}
-                onTextChange={(v) => updateField('SAMPLER', 'pqrst_r_text', v)}
+                value={entry.r}
+                onChange={(v) => updatePqrstField(entry.id, 'r', v)}
+                textValue={entry.r_text}
+                onTextChange={(v) => updatePqrstField(entry.id, 'r_text', v)}
               />
               <PqrstRow
                 letter="S"
                 label="Sévérité (EVA 0-10)"
                 options={EVA_OPTIONS}
-                value={form.SAMPLER.pqrst_s}
-                onChange={(v) => updateField('SAMPLER', 'pqrst_s', v)}
-                textValue={form.SAMPLER.pqrst_s_text}
-                onTextChange={(v) => updateField('SAMPLER', 'pqrst_s_text', v)}
+                value={entry.s}
+                onChange={(v) => updatePqrstField(entry.id, 's', v)}
+                textValue={entry.s_text}
+                onTextChange={(v) => updatePqrstField(entry.id, 's_text', v)}
                 multi={false}
               />
               <PqrstRow
                 letter="T"
                 label="Temps"
                 options={PQRST_T_OPTIONS}
-                value={form.SAMPLER.pqrst_t}
-                onChange={(v) => updateField('SAMPLER', 'pqrst_t', v)}
-                textValue={form.SAMPLER.pqrst_t_text}
-                onTextChange={(v) => updateField('SAMPLER', 'pqrst_t_text', v)}
+                value={entry.t}
+                onChange={(v) => updatePqrstField(entry.id, 't', v)}
+                textValue={entry.t_text}
+                onTextChange={(v) => updatePqrstField(entry.id, 't_text', v)}
               />
             </div>
-          )}
+          ))}
           <SamplerField
             letter="A"
             label="Allergies"
