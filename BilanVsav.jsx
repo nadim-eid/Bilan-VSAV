@@ -28,9 +28,10 @@ const storage = {
 const AMBER = '#F2A73B';
 const EMERALD = '#34D399';
 
-const STEPS = ['TYPE', 'A', 'B', 'C', 'D', 'E', 'BRULURE', 'FAST', 'SAMPLER', 'RECAP'];
+const STEPS = ['TYPE', 'X', 'A', 'B', 'C', 'D', 'E', 'BRULURE', 'FAST', 'SAMPLER', 'RECAP'];
 const PAGE_TITLES = {
   TYPE: 'Type de victime',
+  X: 'Trauma & hémorragie',
   A: 'Voies aériennes',
   B: 'Respiration',
   C: 'Circulation',
@@ -40,25 +41,29 @@ const PAGE_TITLES = {
   FAST: 'FAST — Suspicion AVC',
   SAMPLER: 'SAMPLER — Anamnèse',
 };
-const SECTION_BADGE = { A: 'A', B: 'B', C: 'C', D: 'D', E: 'E', BRULURE: 'Br', FAST: 'F', SAMPLER: 'S' };
+const SECTION_BADGE = { X: 'X', A: 'A', B: 'B', C: 'C', D: 'D', E: 'E', BRULURE: 'Br', FAST: 'F', SAMPLER: 'S' };
 
 // Valeurs normales indicatives par catégorie de victime (ordres de grandeur usuels
 // en secourisme — à recaler sur le référentiel SUAP exact de ton service si besoin).
 const PATIENT_CATEGORIES = {
   nouveau_ne: {
     label: 'Nouveau-né / Nourrisson',
+    ageRange: '0 - 2 ans',
     ranges: { fr: [40, 60], fc: [120, 160], spo2: [95, 100], pa_sys: [60, 90], temperature: [36.5, 37.5], glycemie: [0.4, 1.0] },
   },
   enfant: {
     label: 'Enfant',
+    ageRange: '2 - 12 ans',
     ranges: { fr: [20, 30], fc: [80, 120], spo2: [95, 100], pa_sys: [90, 110], temperature: [36.5, 37.5], glycemie: [0.7, 1.1] },
   },
   adulte: {
     label: 'Adulte',
+    ageRange: '12 - 65 ans',
     ranges: { fr: [12, 20], fc: [60, 100], spo2: [95, 100], pa_sys: [100, 140], temperature: [36, 37.5], glycemie: [0.7, 1.1] },
   },
   age: {
     label: 'Personne âgée',
+    ageRange: '65 ans et +',
     ranges: { fr: [12, 20], fc: [60, 100], spo2: [92, 100], pa_sys: [100, 160], temperature: [36, 37.5], glycemie: [0.7, 1.1] },
   },
 };
@@ -179,13 +184,34 @@ const ENV_OPTIONS = [
   { value: 'froid', label: 'Froid' },
 ];
 
+const ALLERGY_OPTIONS = [
+  { value: 'alimentaire', label: 'Alimentaire' },
+  { value: 'medicamenteuse', label: 'Médicamenteuse' },
+  { value: 'insecte', label: "Piqûre d'insecte" },
+  { value: 'latex', label: 'Latex' },
+  { value: 'autre', label: 'Autre' },
+];
+
+const ANTECEDENTS_OPTIONS = [
+  { value: 'hospitalisation', label: 'Hospitalisation' },
+  { value: 'avc', label: 'AVC' },
+  { value: 'infarctus', label: 'Infarctus' },
+];
+
+const REPAS_OPTIONS = [
+  { value: '+24h', label: '+ 24h' },
+  { value: '+12h', label: '+ 12h' },
+  { value: 'matin', label: 'Matin' },
+  { value: 'midi', label: 'Midi' },
+  { value: 'soir', label: 'Soir' },
+];
+
 const optsToLabels = (opts) => Object.fromEntries(opts.map((o) => [o.value, o.label]));
 
 const FIELD_LABELS = {
+  commentaire: 'Commentaire',
+  trauma: 'Victime traumatisée',
   obstruction: 'Liberté des voies aériennes',
-  victime_trauma: 'Victime traumatisée',
-  pls: 'PLS envisagée',
-  protection_cervicale: 'Protection cervicale',
   fr: 'Fréquence respiratoire',
   fr_signes: 'Signes associés',
   spo2: 'SpO2 (SAT)',
@@ -225,23 +251,39 @@ const FIELD_LABELS = {
   speech: 'Speech (parole)',
   temps: "Heure d'apparition",
   sampler_s: 'S — Signes et symptômes',
-  sampler_a: 'A — Allergies',
+  sampler_a_choices: "A — Type d'allergie",
+  sampler_a: 'A — Allergies (détail)',
   sampler_m: 'M — Médicaments',
-  sampler_p: 'P — Passé médical',
-  sampler_l: 'L — Dernier repas',
+  sampler_p_choices: 'P — Antécédents',
+  sampler_p: 'P — Passé médical (détail)',
+  sampler_l_choice: 'L — Moment du dernier repas',
+  sampler_l: 'L — Dernier repas (détail)',
   sampler_e: 'E — Événement',
   sampler_r: 'R — Risques',
 };
 
 const PAGE_FIELDS = {
-  A: ['obstruction', 'victime_trauma', 'pls', 'protection_cervicale'],
+  TYPE: ['commentaire'],
+  X: ['trauma', 'hemorragie', 'hemorragie_sites'],
+  A: ['obstruction'],
   B: ['fr', 'fr_signes', 'spo2', 'spo2_mode'],
-  C: ['fc', 'pa_gauche', 'pa_droite', 'pouls_sym', 'pouls_frappe', 'trc', 'signes', 'hemorragie', 'hemorragie_sites'],
+  C: ['fc', 'pa_gauche', 'pa_droite', 'pouls_sym', 'pouls_frappe', 'trc', 'signes'],
   D: ['pci', 'pc_repete', 'pc_nombre', 'etat', 'orientation', 'neuro_signes', 'pupilles', 'sens_mains', 'sens_pieds', 'eva', 'douleur_loc', 'glycemie'],
   E: ['temperature', 'victime_env', 'lesion'],
   BRULURE: ['brulure', 'brulure_degre', 'brulure_type', 'brulure_zones', 'brulure_etendue', 'brulure_loc'],
   FAST: ['face', 'arm', 'speech', 'temps'],
-  SAMPLER: ['sampler_s', 'sampler_a', 'sampler_m', 'sampler_p', 'sampler_l', 'sampler_e', 'sampler_r'],
+  SAMPLER: [
+    'sampler_s',
+    'sampler_a_choices',
+    'sampler_a',
+    'sampler_m',
+    'sampler_p_choices',
+    'sampler_p',
+    'sampler_l_choice',
+    'sampler_l',
+    'sampler_e',
+    'sampler_r',
+  ],
 };
 
 const UNITS = {
@@ -258,13 +300,14 @@ const UNITS = {
 
 const VALUE_LABELS = {
   obstruction: optsToLabels(OUI_NON),
-  victime_trauma: optsToLabels(OUI_NON),
+  trauma: optsToLabels(OUI_NON),
   brulure: optsToLabels(OUI_NON),
   brulure_degre: optsToLabels(BRULURE_DEGRE_OPTIONS),
   brulure_type: optsToLabels(BRULURE_TYPE_OPTIONS),
   brulure_zones: optsToLabels(BRULURE_ZONE_OPTIONS),
-  pls: optsToLabels(OUI_NON),
-  protection_cervicale: optsToLabels(OUI_NON),
+  sampler_a_choices: optsToLabels(ALLERGY_OPTIONS),
+  sampler_p_choices: optsToLabels(ANTECEDENTS_OPTIONS),
+  sampler_l_choice: optsToLabels(REPAS_OPTIONS),
   fr_signes: optsToLabels(BREATH_SIGNS),
   spo2_mode: optsToLabels(SPO2_MODE),
   pouls_sym: optsToLabels(OUI_NON),
@@ -312,8 +355,9 @@ function formatValue(field, value) {
 }
 
 const initialForm = () => ({
-  TYPE: { categorie: '' },
-  A: { obstruction: '', victime_trauma: '', pls: '', protection_cervicale: '' },
+  TYPE: { categorie: '', commentaire: '' },
+  X: { trauma: '', hemorragie: '', hemorragie_sites: [] },
+  A: { obstruction: '' },
   B: { fr: '', fr_signes: [], spo2: '', spo2_mode: '' },
   C: {
     fc: '',
@@ -325,8 +369,6 @@ const initialForm = () => ({
     pouls_frappe: '',
     trc: '',
     signes: [],
-    hemorragie: '',
-    hemorragie_sites: [],
   },
   D: {
     pci: '',
@@ -354,9 +396,12 @@ const initialForm = () => ({
   FAST: { face: '', arm: '', speech: '', temps: '' },
   SAMPLER: {
     sampler_s: '',
+    sampler_a_choices: [],
     sampler_a: '',
     sampler_m: '',
+    sampler_p_choices: [],
     sampler_p: '',
+    sampler_l_choice: '',
     sampler_l: '',
     sampler_e: '',
     sampler_r: '',
@@ -642,7 +687,11 @@ function TorchButton() {
   );
 }
 
-function SamplerField({ letter, label, value, onChange }) {
+function SamplerField({ letter, label, value, onChange, choiceOptions, choiceValue, onChoiceChange, choiceMulti }) {
+  const hasChoice = choiceValue !== undefined
+    ? (Array.isArray(choiceValue) ? choiceValue.length > 0 : !!choiceValue)
+    : false;
+  const isFilled = !!value || hasChoice;
   return (
     <div className="bg-neutral-900 border border-neutral-800 rounded-lg p-4 flex flex-col gap-2">
       <div className="flex items-center gap-2">
@@ -655,14 +704,23 @@ function SamplerField({ letter, label, value, onChange }) {
         <span className="text-sm font-semibold text-neutral-200 uppercase tracking-wide">{label}</span>
         <span
           className="w-1.5 h-1.5 rounded-full ml-auto shrink-0"
-          style={{ backgroundColor: value ? EMERALD : '#404040' }}
+          style={{ backgroundColor: isFilled ? EMERALD : '#404040' }}
         />
       </div>
+      {choiceOptions && (
+        <div className="pb-1">
+          {choiceMulti ? (
+            <MultiToggleGroup value={choiceValue} onChange={onChoiceChange} options={choiceOptions} />
+          ) : (
+            <ToggleGroup value={choiceValue} onChange={onChoiceChange} options={choiceOptions} />
+          )}
+        </div>
+      )}
       <textarea
         value={value}
         onChange={(e) => onChange(e.target.value)}
         rows={2}
-        placeholder="Texte libre…"
+        placeholder="Texte libre pour plus de détails…"
         className="w-full bg-neutral-950 border border-neutral-800 rounded-md px-3 py-2 text-sm text-neutral-100 focus:outline-none focus:border-neutral-500 resize-none"
         style={{ fontFamily: "'Inter', sans-serif" }}
       />
@@ -689,14 +747,21 @@ function buildRecapLines(data) {
   const lines = [];
   if (data.TYPE && data.TYPE.categorie) {
     lines.push(`Catégorie : ${PATIENT_CATEGORIES[data.TYPE.categorie].label}`);
-    lines.push('');
   }
-  ['A', 'B', 'C', 'D', 'E', 'BRULURE', 'FAST', 'SAMPLER'].forEach((page) => {
+  if (data.TYPE && data.TYPE.commentaire) {
+    lines.push(`Commentaire : ${data.TYPE.commentaire}`);
+  }
+  lines.push('');
+  ['X', 'A', 'B', 'C', 'D', 'E', 'BRULURE', 'FAST', 'SAMPLER'].forEach((page) => {
     const rows = PAGE_FIELDS[page]
       .map((f) => ({ f, v: formatValue(f, getRawValue(page, f, data)) }))
       .filter((r) => r.v !== null);
-    if (rows.length === 0) return;
     lines.push(`${PAGE_TITLES[page] || page}`);
+    if (rows.length === 0) {
+      lines.push('  Non renseigné');
+      lines.push('');
+      return;
+    }
     rows.forEach(({ f, v }) => lines.push(`  ${FIELD_LABELS[f]} : ${v}`));
     if (
       page === 'FAST' &&
@@ -827,27 +892,31 @@ function ExportButtons({ form, patientNum }) {
 }
 
 function RecapView({ data }) {
-  const sections = ['A', 'B', 'C', 'D', 'E', 'BRULURE', 'FAST', 'SAMPLER']
-    .map((page) => {
-      const rows = PAGE_FIELDS[page]
-        .map((f) => ({ f, v: formatValue(f, getRawValue(page, f, data)) }))
-        .filter((r) => r.v !== null);
-      return { page, rows };
-    })
-    .filter((section) => section.rows.length > 0);
-
-  if (sections.length === 0) {
-    return <p className="text-neutral-500 text-sm">Aucune donnée renseignée.</p>;
-  }
+  const sections = ['X', 'A', 'B', 'C', 'D', 'E', 'BRULURE', 'FAST', 'SAMPLER'].map((page) => {
+    const rows = PAGE_FIELDS[page]
+      .map((f) => ({ f, v: formatValue(f, getRawValue(page, f, data)) }))
+      .filter((r) => r.v !== null);
+    return { page, rows };
+  });
 
   return (
     <div className="flex flex-col gap-5">
-      {data.TYPE && data.TYPE.categorie && (
-        <div className="flex items-center gap-2 text-sm bg-neutral-900 border border-neutral-800 rounded-md px-3 py-2">
-          <span className="text-neutral-500">Catégorie :</span>
-          <span className="font-semibold text-neutral-100">
-            {PATIENT_CATEGORIES[data.TYPE.categorie].label}
-          </span>
+      {data.TYPE && (data.TYPE.categorie || data.TYPE.commentaire) && (
+        <div className="flex flex-col gap-2">
+          {data.TYPE.categorie && (
+            <div className="flex items-center gap-2 text-sm bg-neutral-900 border border-neutral-800 rounded-md px-3 py-2">
+              <span className="text-neutral-500">Catégorie :</span>
+              <span className="font-semibold text-neutral-100">
+                {PATIENT_CATEGORIES[data.TYPE.categorie].label}
+              </span>
+            </div>
+          )}
+          {data.TYPE.commentaire && (
+            <div className="flex flex-col gap-1 text-sm bg-neutral-900 border border-neutral-800 rounded-md px-3 py-2">
+              <span className="text-neutral-500 text-xs">Commentaire</span>
+              <span className="text-neutral-100">{data.TYPE.commentaire}</span>
+            </div>
+          )}
         </div>
       )}
       {sections.map(({ page, rows }) => (
@@ -866,22 +935,26 @@ function RecapView({ data }) {
               {PAGE_TITLES[page]}
             </h3>
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-            {rows.map(({ f, v }) => (
-              <div
-                key={f}
-                className="flex items-center justify-between bg-neutral-900 border border-neutral-800 rounded-md px-3 py-2 gap-3"
-              >
-                <span className="text-xs text-neutral-500">{FIELD_LABELS[f]}</span>
-                <span
-                  className="text-sm text-neutral-100 text-right"
-                  style={{ fontFamily: "'IBM Plex Mono', monospace" }}
+          {rows.length === 0 ? (
+            <p className="text-sm text-neutral-600 italic px-1">Non renseigné</p>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              {rows.map(({ f, v }) => (
+                <div
+                  key={f}
+                  className="flex items-center justify-between bg-neutral-900 border border-neutral-800 rounded-md px-3 py-2 gap-3"
                 >
-                  {v}
-                </span>
-              </div>
-            ))}
-          </div>
+                  <span className="text-xs text-neutral-500">{FIELD_LABELS[f]}</span>
+                  <span
+                    className="text-sm text-neutral-100 text-right"
+                    style={{ fontFamily: "'IBM Plex Mono', monospace" }}
+                  >
+                    {v}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
           {page === 'FAST' &&
             data.FAST.face === 'non' &&
             data.FAST.arm === 'non' &&
@@ -963,7 +1036,134 @@ export default function BilanVsav() {
     if (saved) setSaved(false);
   }
 
+  // Vérifie l'ensemble des constats d'une page (B, C, D ou E) d'un coup, au moment
+  // de passer à la suivante — plutôt que d'interrompre la saisie champ par champ.
+  function checkPageOnNext(page) {
+    if (page === 'B') {
+      checkAndAlert('fr', form.B.fr);
+      checkAndAlert('spo2', form.B.spo2);
+      if (form.B.fr_signes.length > 0) {
+        pushCat(
+          'resp_signes',
+          'Signes de détresse respiratoire',
+          'Position demi-assise, oxygénothérapie si disponible, surveillance rapprochée, alerter le 15.'
+        );
+      }
+    }
+    if (page === 'C') {
+      checkAndAlert('fc', form.C.fc);
+      checkAndAlert('pa_sys', form.C.pa_gauche_sys);
+      checkAndAlert('pa_sys', form.C.pa_droite_sys);
+      if (form.C.pouls_sym === 'non') {
+        pushCat(
+          'pouls_asym',
+          'Pouls asymétrique',
+          "Suspicion d'atteinte vasculaire : ne pas mobiliser le membre concerné, alerter le 15."
+        );
+      }
+      if (form.C.pouls_frappe === 'non') {
+        pushCat(
+          'pouls_faible',
+          'Pouls mal frappé',
+          'Signe de choc possible : position d\u2019attente (allongée, jambes surélevées sauf contre-indication), alerter le 15.'
+        );
+      }
+      if (form.C.trc === '>2s') {
+        pushCat(
+          'trc_long',
+          'TRC > 2 secondes',
+          'Signe de choc : position d\u2019attente (allongée, jambes surélevées sauf contre-indication), couvrir, alerter le 15.'
+        );
+      }
+      if (form.C.signes.length > 0) {
+        pushCat(
+          'choc_signes',
+          'Signes de choc',
+          'Position d\u2019attente (allongée, jambes surélevées sauf contre-indication), couvrir, alerter le 15.'
+        );
+      }
+    }
+    if (page === 'D') {
+      if (form.D.pci === 'oui') {
+        pushCat(
+          'pci',
+          'Perte de connaissance',
+          'Position d\u2019attente : PLS si respiration spontanée et pas de trauma suspecté (sinon maintien tête), surveillance rapprochée, alerter le 15.'
+        );
+      }
+      if (form.D.pc_repete === 'oui') {
+        pushCat(
+          'pc_repete',
+          'Pertes de connaissance répétées',
+          'Alerter le 15, transport médicalisé à prévoir, surveiller étroitement.'
+        );
+      }
+      if (form.D.etat && form.D.etat !== 'A') {
+        pushCat(
+          'etat_conscience',
+          'Trouble de la conscience',
+          'Position d\u2019attente : PLS si respiration spontanée et pas de trauma suspecté, surveillance rapprochée, alerter le 15.'
+        );
+      }
+      if (form.D.orientation === 'non') {
+        pushCat(
+          'orientation',
+          "Trouble de l'orientation",
+          'Surveillance neurologique rapprochée, alerter le 15.'
+        );
+      }
+      if (form.D.neuro_signes.length > 0) {
+        pushCat(
+          'neuro_signes',
+          'Signes neurologiques associés',
+          'Position d\u2019attente : allongée, surveillance neurologique rapprochée, alerter le 15.'
+        );
+      }
+      if (form.D.pupilles === 'non') {
+        pushCat(
+          'pupilles',
+          'Anomalie pupillaire',
+          "Suspicion d'atteinte neurologique : alerter le 15 en urgence."
+        );
+      }
+      if (form.D.sens_mains === 'non') {
+        pushCat('sens_mains', 'Déficit sensitivo-moteur (mains)', 'Ne pas mobiliser, immobiliser, alerter le 15.');
+      }
+      if (form.D.sens_pieds === 'non') {
+        pushCat('sens_pieds', 'Déficit sensitivo-moteur (pieds)', 'Ne pas mobiliser, immobiliser, alerter le 15.');
+      }
+      if (form.D.eva && parseInt(form.D.eva, 10) >= 7) {
+        pushCat(
+          'douleur_intense',
+          'Douleur intense (EVA ≥ 7)',
+          'Installer en position antalgique, alerter le 15 pour prise en charge de la douleur.'
+        );
+      }
+      checkAndAlert('glycemie', form.D.glycemie);
+    }
+    if (page === 'E') {
+      checkAndAlert('temperature', form.E.temperature);
+      if (form.E.victime_env === 'froid') {
+        pushCat(
+          'victime_froid',
+          'Victime en ambiance froide',
+          'Position d\u2019attente : réchauffement progressif, couverture, isolation du sol, retirer les vêtements mouillés.'
+        );
+      }
+      if (form.E.lesion === 'oui') {
+        pushCat(
+          'lesion_cachee',
+          'Lésion cachée détectée',
+          'Réexaminer entièrement la victime, couvrir/protéger la zone, alerter le 15 si nécessaire.'
+        );
+      }
+    }
+  }
+
   function goNext() {
+    if (['B', 'C', 'D', 'E'].includes(STEPS[step])) {
+      checkPageOnNext(STEPS[step]);
+    }
     setStep((s) => Math.min(s + 1, STEPS.length - 1));
   }
   function goPrev() {
@@ -1082,14 +1282,84 @@ export default function BilanVsav() {
                     : { backgroundColor: '#171717', borderColor: '#262626', color: '#e5e5e5' }
                 }
               >
-                <span className="font-semibold text-base" style={{ fontFamily: "'Barlow Condensed', sans-serif" }}>
-                  {cat.label}
-                </span>
+                <div className="flex flex-col">
+                  <span className="font-semibold text-base" style={{ fontFamily: "'Barlow Condensed', sans-serif" }}>
+                    {cat.label}
+                  </span>
+                  <span className="text-xs" style={{ color: active ? 'rgba(255,255,255,0.75)' : '#737373' }}>
+                    {cat.ageRange}
+                  </span>
+                </div>
                 {active && <Check size={18} />}
               </button>
             );
           })}
+          <div className="flex flex-col gap-1.5 mt-2">
+            <span className="text-xs text-neutral-500 uppercase tracking-wide">
+              Commentaire (optionnel)
+            </span>
+            <textarea
+              value={form.TYPE.commentaire}
+              onChange={(e) => updateField('TYPE', 'commentaire', e.target.value)}
+              rows={3}
+              placeholder="Contexte, remarque générale…"
+              className="w-full bg-neutral-950 border border-neutral-800 rounded-md px-3 py-2 text-sm text-neutral-100 focus:outline-none focus:border-neutral-500 resize-none"
+              style={{ fontFamily: "'Inter', sans-serif" }}
+            />
+          </div>
         </div>
+      );
+    if (s === 'X')
+      return (
+        <>
+          <FieldCard label="Victime traumatisée" filled={!!form.X.trauma}>
+            <ToggleGroup
+              value={form.X.trauma}
+              onChange={(v) => {
+                updateField('X', 'trauma', v);
+                if (v === 'oui') {
+                  pushCat(
+                    'trauma',
+                    'Victime traumatisée',
+                    'Maintien de la tête (ne pas mobiliser le rachis), pose d\u2019un collier cervical si disponible. Position : allongée en rectitude, ne pas laisser la victime bouger, alerter le 15.'
+                  );
+                }
+              }}
+              options={OUI_NON}
+            />
+          </FieldCard>
+          <FieldCard label="Hémorragie" filled={!!form.X.hemorragie}>
+            <div className="flex flex-col gap-3 items-stretch">
+              <ToggleGroup
+                value={form.X.hemorragie}
+                onChange={(v) => {
+                  updateField('X', 'hemorragie', v);
+                  if (v !== 'oui') updateField('X', 'hemorragie_sites', []);
+                  if (v === 'oui') {
+                    pushCat(
+                      'hemorragie',
+                      'Hémorragie',
+                      'Compression manuelle directe sur la plaie (ou garrot si hémorragie massive incontrôlable). Position : allongée sur le dos, jambes légèrement surélevées si pas de contre-indication. Couvrir pour prévenir l\u2019hypothermie, oxygénothérapie si disponible, alerter le 15.'
+                    );
+                  }
+                }}
+                options={OUI_NON}
+              />
+              {form.X.hemorragie === 'oui' && (
+                <div className="flex flex-col gap-1.5 pt-2 border-t border-neutral-800">
+                  <span className="text-xs text-neutral-500 uppercase tracking-wide">
+                    Localisation(s)
+                  </span>
+                  <MultiToggleGroup
+                    value={form.X.hemorragie_sites}
+                    onChange={(v) => updateField('X', 'hemorragie_sites', v)}
+                    options={HEMORRAGIE_SITES}
+                  />
+                </div>
+              )}
+            </div>
+          </FieldCard>
+        </>
       );
     if (s === 'A')
       return (
@@ -1110,32 +1380,6 @@ export default function BilanVsav() {
               options={OUI_NON}
             />
           </FieldCard>
-          <FieldCard label="Victime traumatisée" filled={!!form.A.victime_trauma}>
-            <ToggleGroup
-              value={form.A.victime_trauma}
-              onChange={(v) => {
-                updateField('A', 'victime_trauma', v);
-                if (v === 'oui') {
-                  pushCat(
-                    'trauma',
-                    'Victime traumatisée',
-                    "Maintien de la tête, pose d'un collier cervical, limiter les mobilisations."
-                  );
-                }
-              }}
-              options={OUI_NON}
-            />
-          </FieldCard>
-          <FieldCard label="PLS envisagée" filled={!!form.A.pls}>
-            <ToggleGroup value={form.A.pls} onChange={(v) => updateField('A', 'pls', v)} options={OUI_NON} />
-          </FieldCard>
-          <FieldCard label="Protection cervicale" filled={!!form.A.protection_cervicale}>
-            <ToggleGroup
-              value={form.A.protection_cervicale}
-              onChange={(v) => updateField('A', 'protection_cervicale', v)}
-              options={OUI_NON}
-            />
-          </FieldCard>
         </>
       );
     if (s === 'B')
@@ -1147,7 +1391,6 @@ export default function BilanVsav() {
               <InputBox
                 value={form.B.fr}
                 onChange={(v) => updateField('B', 'fr', v)}
-                onBlur={() => checkAndAlert('fr', form.B.fr)}
                 abnormal={isAbnormalField('fr', form.B.fr)}
                 unit="/min"
                 numeric
@@ -1157,16 +1400,7 @@ export default function BilanVsav() {
           <FieldCard label="Signes associés" filled={form.B.fr_signes.length > 0}>
             <MultiToggleGroup
               value={form.B.fr_signes}
-              onChange={(v) => {
-                if (v.length > 0 && form.B.fr_signes.length === 0) {
-                  pushCat(
-                    'resp_signes',
-                    'Signes de détresse respiratoire',
-                    'Position demi-assise, oxygénothérapie si disponible, surveillance rapprochée, alerter le 15.'
-                  );
-                }
-                updateField('B', 'fr_signes', v);
-              }}
+              onChange={(v) => updateField('B', 'fr_signes', v)}
               options={BREATH_SIGNS}
             />
           </FieldCard>
@@ -1175,7 +1409,6 @@ export default function BilanVsav() {
               <InputBox
                 value={form.B.spo2}
                 onChange={(v) => updateField('B', 'spo2', v)}
-                onBlur={() => checkAndAlert('spo2', form.B.spo2)}
                 abnormal={isAbnormalField('spo2', form.B.spo2)}
                 unit="%"
                 numeric
@@ -1198,7 +1431,6 @@ export default function BilanVsav() {
               <InputBox
                 value={form.C.fc}
                 onChange={(v) => updateField('C', 'fc', v)}
-                onBlur={() => checkAndAlert('fc', form.C.fc)}
                 abnormal={isAbnormalField('fc', form.C.fc)}
                 unit="/min"
                 numeric
@@ -1215,7 +1447,6 @@ export default function BilanVsav() {
                 <InputBox
                   value={form.C.pa_gauche_sys}
                   onChange={(v) => updateField('C', 'pa_gauche_sys', v)}
-                  onBlur={() => checkAndAlert('pa_sys', form.C.pa_gauche_sys)}
                   abnormal={isAbnormalField('pa_sys', form.C.pa_gauche_sys)}
                   placeholder="120"
                   numeric
@@ -1246,7 +1477,6 @@ export default function BilanVsav() {
                 <InputBox
                   value={form.C.pa_droite_sys}
                   onChange={(v) => updateField('C', 'pa_droite_sys', v)}
-                  onBlur={() => checkAndAlert('pa_sys', form.C.pa_droite_sys)}
                   abnormal={isAbnormalField('pa_sys', form.C.pa_droite_sys)}
                   placeholder="120"
                   numeric
@@ -1270,97 +1500,30 @@ export default function BilanVsav() {
           <FieldCard label="Pouls symétrique" filled={!!form.C.pouls_sym}>
             <ToggleGroup
               value={form.C.pouls_sym}
-              onChange={(v) => {
-                updateField('C', 'pouls_sym', v);
-                if (v === 'non') {
-                  pushCat(
-                    'pouls_asym',
-                    'Pouls asymétrique',
-                    "Suspicion d'atteinte vasculaire : ne pas mobiliser le membre concerné, alerter le 15."
-                  );
-                }
-              }}
+              onChange={(v) => updateField('C', 'pouls_sym', v)}
               options={OUI_NON}
             />
           </FieldCard>
           <FieldCard label="Pouls bien frappé" filled={!!form.C.pouls_frappe}>
             <ToggleGroup
               value={form.C.pouls_frappe}
-              onChange={(v) => {
-                updateField('C', 'pouls_frappe', v);
-                if (v === 'non') {
-                  pushCat(
-                    'pouls_faible',
-                    'Pouls mal frappé',
-                    'Signe de choc possible : position d’attente, jambes surélevées si pas de contre-indication, alerter le 15.'
-                  );
-                }
-              }}
+              onChange={(v) => updateField('C', 'pouls_frappe', v)}
               options={OUI_NON}
             />
           </FieldCard>
           <FieldCard label="TRC" filled={!!form.C.trc}>
             <ToggleGroup
               value={form.C.trc}
-              onChange={(v) => {
-                updateField('C', 'trc', v);
-                if (v === '>2s') {
-                  pushCat(
-                    'trc_long',
-                    'TRC > 2 secondes',
-                    'Signe de choc : position jambes surélevées si pas de contre-indication, couvrir, alerter le 15.'
-                  );
-                }
-              }}
+              onChange={(v) => updateField('C', 'trc', v)}
               options={TRC_OPTIONS}
             />
           </FieldCard>
           <FieldCard label="Signes associés" filled={form.C.signes.length > 0}>
             <MultiToggleGroup
               value={form.C.signes}
-              onChange={(v) => {
-                if (v.length > 0 && form.C.signes.length === 0) {
-                  pushCat(
-                    'choc_signes',
-                    'Signes de choc',
-                    'Position d’attente (jambes surélevées sauf contre-indication), couvrir, alerter le 15.'
-                  );
-                }
-                updateField('C', 'signes', v);
-              }}
+              onChange={(v) => updateField('C', 'signes', v)}
               options={CIRC_SIGNS}
             />
-          </FieldCard>
-          <FieldCard label="Hémorragie" filled={!!form.C.hemorragie}>
-            <div className="flex flex-col gap-3 items-stretch">
-              <ToggleGroup
-                value={form.C.hemorragie}
-                onChange={(v) => {
-                  updateField('C', 'hemorragie', v);
-                  if (v !== 'oui') updateField('C', 'hemorragie_sites', []);
-                  if (v === 'oui') {
-                    pushCat(
-                      'hemorragie',
-                      'Hémorragie',
-                      'Compression manuelle directe (ou garrot si hémorragie massive incontrôlable), allonger sur le dos, couvrir pour prévenir l’hypothermie, oxygénothérapie si disponible, alerter le 15.'
-                    );
-                  }
-                }}
-                options={OUI_NON}
-              />
-              {form.C.hemorragie === 'oui' && (
-                <div className="flex flex-col gap-1.5 pt-2 border-t border-neutral-800">
-                  <span className="text-xs text-neutral-500 uppercase tracking-wide">
-                    Localisation(s)
-                  </span>
-                  <MultiToggleGroup
-                    value={form.C.hemorragie_sites}
-                    onChange={(v) => updateField('C', 'hemorragie_sites', v)}
-                    options={HEMORRAGIE_SITES}
-                  />
-                </div>
-              )}
-            </div>
           </FieldCard>
         </>
       );
@@ -1368,35 +1531,13 @@ export default function BilanVsav() {
       return (
         <>
           <FieldCard label="PCI" filled={!!form.D.pci}>
-            <ToggleGroup
-              value={form.D.pci}
-              onChange={(v) => {
-                updateField('D', 'pci', v);
-                if (v === 'oui') {
-                  pushCat(
-                    'pci',
-                    'Perte de connaissance',
-                    'PLS si respiration spontanée et pas de trauma suspecté (sinon maintien tête), surveillance rapprochée, alerter le 15.'
-                  );
-                }
-              }}
-              options={OUI_NON}
-            />
+            <ToggleGroup value={form.D.pci} onChange={(v) => updateField('D', 'pci', v)} options={OUI_NON} />
           </FieldCard>
           <FieldCard label="PC à répétition" filled={!!form.D.pc_repete}>
             <div className="flex flex-col gap-3 items-stretch">
               <ToggleGroup
                 value={form.D.pc_repete}
-                onChange={(v) => {
-                  updateField('D', 'pc_repete', v);
-                  if (v === 'oui') {
-                    pushCat(
-                      'pc_repete',
-                      'Pertes de connaissance répétées',
-                      'Alerter le 15, transport médicalisé à prévoir, surveiller étroitement.'
-                    );
-                  }
-                }}
+                onChange={(v) => updateField('D', 'pc_repete', v)}
                 options={OUI_NON}
               />
               <div className="flex flex-col gap-1.5 pt-2 border-t border-neutral-800">
@@ -1415,48 +1556,21 @@ export default function BilanVsav() {
           <FieldCard label="État de conscience" filled={!!form.D.etat}>
             <ToggleGroup
               value={form.D.etat}
-              onChange={(v) => {
-                updateField('D', 'etat', v);
-                if (v && v !== 'A') {
-                  pushCat(
-                    'etat_conscience',
-                    'Trouble de la conscience',
-                    'PLS si respiration spontanée et pas de trauma suspecté, surveillance rapprochée, alerter le 15.'
-                  );
-                }
-              }}
+              onChange={(v) => updateField('D', 'etat', v)}
               options={AVPU_OPTIONS}
             />
           </FieldCard>
           <FieldCard label="Orientation temps-espace" filled={!!form.D.orientation}>
             <ToggleGroup
               value={form.D.orientation}
-              onChange={(v) => {
-                updateField('D', 'orientation', v);
-                if (v === 'non') {
-                  pushCat(
-                    'orientation',
-                    "Trouble de l'orientation",
-                    'Surveillance neurologique rapprochée, alerter le 15.'
-                  );
-                }
-              }}
+              onChange={(v) => updateField('D', 'orientation', v)}
               options={OUI_NON}
             />
           </FieldCard>
           <FieldCard label="Signes associés" filled={form.D.neuro_signes.length > 0}>
             <MultiToggleGroup
               value={form.D.neuro_signes}
-              onChange={(v) => {
-                if (v.length > 0 && form.D.neuro_signes.length === 0) {
-                  pushCat(
-                    'neuro_signes',
-                    'Signes neurologiques associés',
-                    'Surveillance neurologique rapprochée, position latérale de sécurité si besoin, alerter le 15.'
-                  );
-                }
-                updateField('D', 'neuro_signes', v);
-              }}
+              onChange={(v) => updateField('D', 'neuro_signes', v)}
               options={NEURO_SIGNS}
             />
           </FieldCard>
@@ -1464,16 +1578,7 @@ export default function BilanVsav() {
             <div className="flex flex-col gap-3 items-stretch sm:flex-row sm:items-center">
               <ToggleGroup
                 value={form.D.pupilles}
-                onChange={(v) => {
-                  updateField('D', 'pupilles', v);
-                  if (v === 'non') {
-                    pushCat(
-                      'pupilles',
-                      'Anomalie pupillaire',
-                      "Suspicion d'atteinte neurologique : alerter le 15 en urgence."
-                    );
-                  }
-                }}
+                onChange={(v) => updateField('D', 'pupilles', v)}
                 options={OUI_NON}
               />
               <TorchButton />
@@ -1482,48 +1587,21 @@ export default function BilanVsav() {
           <FieldCard label="Sensibilité / motricité mains" filled={!!form.D.sens_mains}>
             <ToggleGroup
               value={form.D.sens_mains}
-              onChange={(v) => {
-                updateField('D', 'sens_mains', v);
-                if (v === 'non') {
-                  pushCat(
-                    'sens_mains',
-                    'Déficit sensitivo-moteur (mains)',
-                    'Ne pas mobiliser, immobiliser, alerter le 15.'
-                  );
-                }
-              }}
+              onChange={(v) => updateField('D', 'sens_mains', v)}
               options={OUI_NON}
             />
           </FieldCard>
           <FieldCard label="Sensibilité / motricité pieds" filled={!!form.D.sens_pieds}>
             <ToggleGroup
               value={form.D.sens_pieds}
-              onChange={(v) => {
-                updateField('D', 'sens_pieds', v);
-                if (v === 'non') {
-                  pushCat(
-                    'sens_pieds',
-                    'Déficit sensitivo-moteur (pieds)',
-                    'Ne pas mobiliser, immobiliser, alerter le 15.'
-                  );
-                }
-              }}
+              onChange={(v) => updateField('D', 'sens_pieds', v)}
               options={OUI_NON}
             />
           </FieldCard>
           <FieldCard label="Douleur (EVA)" filled={!!form.D.eva}>
             <ToggleGroup
               value={form.D.eva}
-              onChange={(v) => {
-                updateField('D', 'eva', v);
-                if (v && parseInt(v, 10) >= 7) {
-                  pushCat(
-                    'douleur_intense',
-                    'Douleur intense (EVA ≥ 7)',
-                    'Installer en position antalgique, alerter le 15 pour prise en charge de la douleur.'
-                  );
-                }
-              }}
+              onChange={(v) => updateField('D', 'eva', v)}
               options={EVA_OPTIONS}
             />
           </FieldCard>
@@ -1539,7 +1617,6 @@ export default function BilanVsav() {
             <InputBox
               value={form.D.glycemie}
               onChange={(v) => updateField('D', 'glycemie', v)}
-              onBlur={() => checkAndAlert('glycemie', form.D.glycemie)}
               abnormal={isAbnormalField('glycemie', form.D.glycemie)}
               unit="g/L"
               numeric="decimal"
@@ -1554,7 +1631,6 @@ export default function BilanVsav() {
             <InputBox
               value={form.E.temperature}
               onChange={(v) => updateField('E', 'temperature', v)}
-              onBlur={() => checkAndAlert('temperature', form.E.temperature)}
               abnormal={isAbnormalField('temperature', form.E.temperature)}
               unit="°C"
               numeric="decimal"
@@ -1563,32 +1639,14 @@ export default function BilanVsav() {
           <FieldCard label="Victime retrouvée au" filled={!!form.E.victime_env}>
             <ToggleGroup
               value={form.E.victime_env}
-              onChange={(v) => {
-                updateField('E', 'victime_env', v);
-                if (v === 'froid') {
-                  pushCat(
-                    'victime_froid',
-                    'Victime en ambiance froide',
-                    'Réchauffement progressif, couverture, isolation du sol, retirer les vêtements mouillés.'
-                  );
-                }
-              }}
+              onChange={(v) => updateField('E', 'victime_env', v)}
               options={ENV_OPTIONS}
             />
           </FieldCard>
           <FieldCard label="Lésion cachée" filled={!!form.E.lesion}>
             <ToggleGroup
               value={form.E.lesion}
-              onChange={(v) => {
-                updateField('E', 'lesion', v);
-                if (v === 'oui') {
-                  pushCat(
-                    'lesion_cachee',
-                    'Lésion cachée détectée',
-                    'Réexaminer entièrement la victime, couvrir/protéger la zone, alerter le 15 si nécessaire.'
-                  );
-                }
-              }}
+              onChange={(v) => updateField('E', 'lesion', v)}
               options={OUI_NON}
             />
           </FieldCard>
@@ -1761,6 +1819,10 @@ export default function BilanVsav() {
             label="Allergies"
             value={form.SAMPLER.sampler_a}
             onChange={(v) => updateField('SAMPLER', 'sampler_a', v)}
+            choiceOptions={ALLERGY_OPTIONS}
+            choiceValue={form.SAMPLER.sampler_a_choices}
+            onChoiceChange={(v) => updateField('SAMPLER', 'sampler_a_choices', v)}
+            choiceMulti
           />
           <SamplerField
             letter="M"
@@ -1773,12 +1835,19 @@ export default function BilanVsav() {
             label="Passé médical"
             value={form.SAMPLER.sampler_p}
             onChange={(v) => updateField('SAMPLER', 'sampler_p', v)}
+            choiceOptions={ANTECEDENTS_OPTIONS}
+            choiceValue={form.SAMPLER.sampler_p_choices}
+            onChoiceChange={(v) => updateField('SAMPLER', 'sampler_p_choices', v)}
+            choiceMulti
           />
           <SamplerField
             letter="L"
             label="Dernier repas"
             value={form.SAMPLER.sampler_l}
             onChange={(v) => updateField('SAMPLER', 'sampler_l', v)}
+            choiceOptions={REPAS_OPTIONS}
+            choiceValue={form.SAMPLER.sampler_l_choice}
+            onChoiceChange={(v) => updateField('SAMPLER', 'sampler_l_choice', v)}
           />
           <SamplerField
             letter="E"
