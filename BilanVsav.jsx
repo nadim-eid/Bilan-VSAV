@@ -262,6 +262,7 @@ const ALLERGY_OPTIONS = [
   { value: 'insecte', label: "Piqûre d'insecte" },
   { value: 'latex', label: 'Latex' },
   { value: 'autre', label: 'Autre' },
+  { value: 'aucune', label: 'Pas d\u2019allergies connues' },
 ];
 
 const ANTECEDENTS_OPTIONS = [
@@ -1880,30 +1881,44 @@ export default function BilanVsav() {
       return (
         <>
           <FieldCard label="PCI" filled={!!form.D.pci}>
-            <ToggleGroup value={form.D.pci} onChange={(v) => updateField('D', 'pci', v)} options={OUI_NON} />
+            <ToggleGroup
+              value={form.D.pci}
+              onChange={(v) => {
+                updateField('D', 'pci', v);
+                if (v !== 'oui') {
+                  updateField('D', 'pc_repete', '');
+                  updateField('D', 'pc_nombre', '');
+                }
+              }}
+              options={OUI_NON}
+            />
           </FieldCard>
           <InlineCatBox items={getPciCat()} />
-          <FieldCard label="PC à répétition" filled={!!form.D.pc_repete}>
-            <div className="flex flex-col gap-3 items-stretch">
-              <ToggleGroup
-                value={form.D.pc_repete}
-                onChange={(v) => updateField('D', 'pc_repete', v)}
-                options={OUI_NON}
-              />
-              <div className="flex flex-col gap-1.5 pt-2 border-t border-neutral-800">
-                <span className="text-xs text-neutral-500 uppercase tracking-wide">
-                  Nombre de fois
-                </span>
-                <InputBox
-                  value={form.D.pc_nombre}
-                  onChange={(v) => updateField('D', 'pc_nombre', v)}
-                  placeholder="Valeur"
-                  numeric
-                />
-              </div>
-            </div>
-          </FieldCard>
-          <InlineCatBox items={getPcRepeteCat()} />
+          {form.D.pci === 'oui' && (
+            <>
+              <FieldCard label="PC à répétition" filled={!!form.D.pc_repete}>
+                <div className="flex flex-col gap-3 items-stretch">
+                  <ToggleGroup
+                    value={form.D.pc_repete}
+                    onChange={(v) => updateField('D', 'pc_repete', v)}
+                    options={OUI_NON}
+                  />
+                  <div className="flex flex-col gap-1.5 pt-2 border-t border-neutral-800">
+                    <span className="text-xs text-neutral-500 uppercase tracking-wide">
+                      Nombre de fois
+                    </span>
+                    <InputBox
+                      value={form.D.pc_nombre}
+                      onChange={(v) => updateField('D', 'pc_nombre', v)}
+                      placeholder="Valeur"
+                      numeric
+                    />
+                  </div>
+                </div>
+              </FieldCard>
+              <InlineCatBox items={getPcRepeteCat()} />
+            </>
+          )}
           <FieldCard label="État de conscience" filled={!!form.D.etat}>
             <ToggleGroup
               value={form.D.etat}
