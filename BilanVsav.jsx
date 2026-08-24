@@ -119,6 +119,32 @@ const BURN_CAT_DEFAULT = {
   message: "Refroidir à l'eau tempérée (15-20 °C) pendant 15-20 min si moins de 2h, ne pas percer les phlyctènes, couvrir d'un pansement stérile, alerter le 15.",
 };
 
+// Message immédiat dès que "Brûlure = Oui" est coché, avant même le degré/type
+const BURN_INITIAL_CAT = {
+  title: 'Brûlure confirmée',
+  message: "Écarter la victime de la source, refroidir immédiatement à l'eau tempérée si moins de 15 min depuis l'accident.",
+};
+
+// Conduites à tenir spécifiques selon le degré de la brûlure
+const BURN_CAT_BY_DEGREE = {
+  '1': {
+    title: '1er degré',
+    message: "Brûlure superficielle : refroidir à l'eau tempérée 15-20 min, pas de pansement nécessaire si peu étendue.",
+  },
+  '2s': {
+    title: '2e degré superficiel',
+    message: 'Phlyctènes possibles : ne pas les percer, refroidir, couvrir d\u2019un pansement stérile non adhérent.',
+  },
+  '2p': {
+    title: '2e degré profond',
+    message: 'Risque cicatriciel et infectieux : ne pas percer les phlyctènes, pansement stérile, avis médical recommandé.',
+  },
+  '3': {
+    title: '3e degré',
+    message: 'Brûlure grave : ne pas refroidir de façon prolongée (risque d\u2019hypothermie), couvrir avec un linge propre/stérile, alerter le 15 en urgence.',
+  },
+};
+
 const OUI_NON = [{ value: 'oui', label: 'Oui' }, { value: 'non', label: 'Non' }];
 const SPO2_MODE = [{ value: 'air', label: 'Sous air' }, { value: 'o2', label: 'Sous O2' }];
 const TRC_OPTIONS = [{ value: '<2s', label: '< 2 s' }, { value: '>2s', label: '> 2 s' }];
@@ -1354,23 +1380,76 @@ export default function BilanVsav() {
     );
   }
 
-  function getNeuroDetresseCat() {
-    const neuroDetresse =
-      form.D.pci === 'oui' ||
-      form.D.pc_repete === 'oui' ||
-      (form.D.etat && form.D.etat !== 'A') ||
-      form.D.orientation === 'non' ||
-      form.D.neuro_signes.length > 0 ||
-      form.D.pupilles === 'non' ||
-      form.D.sens_mains === 'non' ||
-      form.D.sens_pieds === 'non' ||
-      (form.D.eva && parseInt(form.D.eva, 10) >= 7) ||
-      isAbnormalField('glycemie', form.D.glycemie);
-    if (!neuroDetresse) return [];
+  function getPciCat() {
+    if (form.D.pci !== 'oui') return [];
     return catItem(
-      'neuro_detresse',
-      'Détresse neurologique détectée',
-      'Position d\u2019attente : PLS si respiration spontanée et pas de trauma suspecté (sinon maintien tête). Ne pas laisser seul, surveillance neurologique rapprochée, alerter le 15.'
+      'pci',
+      'Perte de connaissance',
+      'PLS si respiration spontanée et pas de trauma suspecté (sinon maintien tête), surveillance rapprochée, alerter le 15.'
+    );
+  }
+
+  function getPcRepeteCat() {
+    if (form.D.pc_repete !== 'oui') return [];
+    return catItem(
+      'pc_repete',
+      'Pertes de connaissance répétées',
+      'Alerter le 15, transport médicalisé à prévoir, surveiller étroitement.'
+    );
+  }
+
+  function getEtatCat() {
+    if (!form.D.etat || form.D.etat === 'A') return [];
+    return catItem(
+      'etat_conscience',
+      'Trouble de la conscience',
+      'PLS si respiration spontanée et pas de trauma suspecté, surveillance rapprochée, alerter le 15.'
+    );
+  }
+
+  function getOrientationCat() {
+    if (form.D.orientation !== 'non') return [];
+    return catItem(
+      'orientation',
+      "Trouble de l'orientation",
+      'Surveillance neurologique rapprochée, alerter le 15.'
+    );
+  }
+
+  function getNeuroSignesCat() {
+    if (form.D.neuro_signes.length === 0) return [];
+    return catItem(
+      'neuro_signes',
+      'Signes neurologiques associés',
+      'Surveillance neurologique rapprochée, alerter le 15.'
+    );
+  }
+
+  function getPupillesCat() {
+    if (form.D.pupilles !== 'non') return [];
+    return catItem(
+      'pupilles',
+      'Anomalie pupillaire',
+      "Suspicion d'atteinte neurologique : alerter le 15 en urgence."
+    );
+  }
+
+  function getSensMainsCat() {
+    if (form.D.sens_mains !== 'non') return [];
+    return catItem('sens_mains', 'Déficit sensitivo-moteur (mains)', 'Ne pas mobiliser, immobiliser, alerter le 15.');
+  }
+
+  function getSensPiedsCat() {
+    if (form.D.sens_pieds !== 'non') return [];
+    return catItem('sens_pieds', 'Déficit sensitivo-moteur (pieds)', 'Ne pas mobiliser, immobiliser, alerter le 15.');
+  }
+
+  function getDouleurIntenseCat() {
+    if (!form.D.eva || parseInt(form.D.eva, 10) < 7) return [];
+    return catItem(
+      'douleur_intense',
+      'Douleur intense (EVA ≥ 7)',
+      'Installer en position antalgique, alerter le 15 pour prise en charge de la douleur.'
     );
   }
 
@@ -1392,10 +1471,31 @@ export default function BilanVsav() {
     );
   }
 
-  function getBruleCat() {
+  function getBruleInitialCat() {
     if (form.BRULURE.brulure !== 'oui') return [];
-    const entry = BURN_CAT_BY_TYPE[form.BRULURE.brulure_type] || BURN_CAT_DEFAULT;
-    return catItem('brulure', entry.title, entry.message);
+    return catItem('brulure_initial', BURN_INITIAL_CAT.title, BURN_INITIAL_CAT.message);
+  }
+
+  function getBruleDegreCat() {
+    const entry = BURN_CAT_BY_DEGREE[form.BRULURE.brulure_degre];
+    if (!entry) return [];
+    return catItem(`brulure_degre_${form.BRULURE.brulure_degre}`, entry.title, entry.message);
+  }
+
+  function getBruleTypeCat() {
+    const entry = BURN_CAT_BY_TYPE[form.BRULURE.brulure_type];
+    if (!entry) return [];
+    return catItem(`brulure_type_${form.BRULURE.brulure_type}`, entry.title, entry.message);
+  }
+
+  function getBruleEtendueCat() {
+    const num = parseFloat(String(form.BRULURE.brulure_etendue).replace(',', '.'));
+    if (isNaN(num) || num < 10) return [];
+    return catItem(
+      'brulure_etendue',
+      'Brûlure étendue (≥ 10 % SC)',
+      'Risque de choc hypovolémique : surveillance hémodynamique rapprochée, transport médicalisé à prévoir, alerter le 15.'
+    );
   }
 
   function getFastCat() {
@@ -1727,6 +1827,7 @@ export default function BilanVsav() {
           <FieldCard label="PCI" filled={!!form.D.pci}>
             <ToggleGroup value={form.D.pci} onChange={(v) => updateField('D', 'pci', v)} options={OUI_NON} />
           </FieldCard>
+          <InlineCatBox items={getPciCat()} />
           <FieldCard label="PC à répétition" filled={!!form.D.pc_repete}>
             <div className="flex flex-col gap-3 items-stretch">
               <ToggleGroup
@@ -1747,6 +1848,7 @@ export default function BilanVsav() {
               </div>
             </div>
           </FieldCard>
+          <InlineCatBox items={getPcRepeteCat()} />
           <FieldCard label="État de conscience" filled={!!form.D.etat}>
             <ToggleGroup
               value={form.D.etat}
@@ -1754,6 +1856,7 @@ export default function BilanVsav() {
               options={AVPU_OPTIONS}
             />
           </FieldCard>
+          <InlineCatBox items={getEtatCat()} />
           <FieldCard label="Orientation temps-espace" filled={!!form.D.orientation}>
             <ToggleGroup
               value={form.D.orientation}
@@ -1761,6 +1864,7 @@ export default function BilanVsav() {
               options={OUI_NON}
             />
           </FieldCard>
+          <InlineCatBox items={getOrientationCat()} />
           <FieldCard label="Signes associés" filled={form.D.neuro_signes.length > 0}>
             <MultiToggleGroup
               value={form.D.neuro_signes}
@@ -1768,6 +1872,7 @@ export default function BilanVsav() {
               options={NEURO_SIGNS}
             />
           </FieldCard>
+          <InlineCatBox items={getNeuroSignesCat()} />
           <FieldCard label="Pupilles sym., taille normale, réactives" filled={!!form.D.pupilles}>
             <div className="flex flex-col gap-3 items-stretch sm:flex-row sm:items-center">
               <ToggleGroup
@@ -1778,6 +1883,7 @@ export default function BilanVsav() {
               <TorchButton />
             </div>
           </FieldCard>
+          <InlineCatBox items={getPupillesCat()} />
           <FieldCard label="Sensibilité / motricité mains" filled={!!form.D.sens_mains}>
             <ToggleGroup
               value={form.D.sens_mains}
@@ -1785,6 +1891,7 @@ export default function BilanVsav() {
               options={OUI_NON}
             />
           </FieldCard>
+          <InlineCatBox items={getSensMainsCat()} />
           <FieldCard label="Sensibilité / motricité pieds" filled={!!form.D.sens_pieds}>
             <ToggleGroup
               value={form.D.sens_pieds}
@@ -1792,6 +1899,7 @@ export default function BilanVsav() {
               options={OUI_NON}
             />
           </FieldCard>
+          <InlineCatBox items={getSensPiedsCat()} />
           <FieldCard label="Douleur (EVA)" filled={!!form.D.eva}>
             <ToggleGroup
               value={form.D.eva}
@@ -1799,6 +1907,7 @@ export default function BilanVsav() {
               options={EVA_OPTIONS}
             />
           </FieldCard>
+          <InlineCatBox items={getDouleurIntenseCat()} />
           <FieldCard label="Localisation douleur" filled={!!form.D.douleur_loc}>
             <InputBox
               value={form.D.douleur_loc}
@@ -1822,7 +1931,7 @@ export default function BilanVsav() {
               )}
             </div>
           </FieldCard>
-          <InlineCatBox items={getNeuroDetresseCat()} />
+          <InlineCatBox items={getSimpleCat('glycemie', form.D.glycemie)} />
         </>
       );
     if (s === 'E')
@@ -1875,7 +1984,7 @@ export default function BilanVsav() {
                 }}
                 options={OUI_NON}
               />
-              <InlineCatBox items={getBruleCat()} />
+              <InlineCatBox items={getBruleInitialCat()} />
               {form.BRULURE.brulure === 'oui' && (
                 <div className="flex flex-col gap-4 pt-2 border-t border-neutral-800">
                   <div className="flex flex-col gap-1.5">
@@ -1885,58 +1994,67 @@ export default function BilanVsav() {
                       onChange={(v) => updateField('BRULURE', 'brulure_degre', v)}
                       options={BRULURE_DEGRE_OPTIONS}
                     />
+                    <InlineCatBox items={getBruleDegreCat()} />
                   </div>
-                  <div className="flex flex-col gap-1.5">
-                    <span className="text-xs text-neutral-500 uppercase tracking-wide">Type</span>
-                    <ToggleGroup
-                      value={form.BRULURE.brulure_type}
-                      onChange={(v) => updateField('BRULURE', 'brulure_type', v)}
-                      options={BRULURE_TYPE_OPTIONS}
-                    />
-                  </div>
-                  <div className="flex flex-col gap-1.5">
-                    <span className="text-xs text-neutral-500 uppercase tracking-wide">
-                      Zones atteintes — règle des 9 de Wallace
-                    </span>
-                    <MultiToggleGroup
-                      value={form.BRULURE.brulure_zones}
-                      onChange={(zones) => {
-                        updateField('BRULURE', 'brulure_zones', zones);
-                        const total = zones.reduce((sum, z) => {
-                          const zone = BRULURE_ZONES_9.find((zz) => zz.value === z);
-                          return sum + (zone ? zone.pct : 0);
-                        }, 0);
-                        updateField('BRULURE', 'brulure_etendue', total > 0 ? String(total) : '');
-                      }}
-                      options={BRULURE_ZONE_OPTIONS}
-                    />
-                  </div>
-                  <div className="flex flex-col gap-1.5">
-                    <span className="text-xs text-neutral-500 uppercase tracking-wide">
-                      Étendue totale (calculée, modifiable)
-                    </span>
-                    <InputBox
-                      value={form.BRULURE.brulure_etendue}
-                      onChange={(v) => updateField('BRULURE', 'brulure_etendue', v)}
-                      unit="% SC"
-                      placeholder="Valeur"
-                      numeric
-                    />
-                    <span className="text-xs text-neutral-600 italic">
-                      Règle de la paume : la paume de la victime (doigts compris) ≈ 1 % de sa
-                      surface corporelle — pratique pour ajuster sur des brûlures dispersées ou
-                      plus petites qu'une zone entière.
-                    </span>
-                  </div>
-                  <div className="flex flex-col gap-1.5">
-                    <span className="text-xs text-neutral-500 uppercase tracking-wide">Localisation</span>
-                    <InputBox
-                      value={form.BRULURE.brulure_loc}
-                      onChange={(v) => updateField('BRULURE', 'brulure_loc', v)}
-                      placeholder="ex. avant-bras droit"
-                      width="w-48"
-                    />
-                  </div>
+                  {form.BRULURE.brulure_degre && (
+                    <div className="flex flex-col gap-1.5">
+                      <span className="text-xs text-neutral-500 uppercase tracking-wide">Type</span>
+                      <ToggleGroup
+                        value={form.BRULURE.brulure_type}
+                        onChange={(v) => updateField('BRULURE', 'brulure_type', v)}
+                        options={BRULURE_TYPE_OPTIONS}
+                      />
+                      <InlineCatBox items={getBruleTypeCat()} />
+                    </div>
+                  )}
+                  {form.BRULURE.brulure_type && (
+                    <>
+                      <div className="flex flex-col gap-1.5">
+                        <span className="text-xs text-neutral-500 uppercase tracking-wide">
+                          Zones atteintes — règle des 9 de Wallace
+                        </span>
+                        <MultiToggleGroup
+                          value={form.BRULURE.brulure_zones}
+                          onChange={(zones) => {
+                            updateField('BRULURE', 'brulure_zones', zones);
+                            const total = zones.reduce((sum, z) => {
+                              const zone = BRULURE_ZONES_9.find((zz) => zz.value === z);
+                              return sum + (zone ? zone.pct : 0);
+                            }, 0);
+                            updateField('BRULURE', 'brulure_etendue', total > 0 ? String(total) : '');
+                          }}
+                          options={BRULURE_ZONE_OPTIONS}
+                        />
+                      </div>
+                      <div className="flex flex-col gap-1.5">
+                        <span className="text-xs text-neutral-500 uppercase tracking-wide">
+                          Étendue totale (calculée, modifiable)
+                        </span>
+                        <InputBox
+                          value={form.BRULURE.brulure_etendue}
+                          onChange={(v) => updateField('BRULURE', 'brulure_etendue', v)}
+                          unit="% SC"
+                          placeholder="Valeur"
+                          numeric
+                        />
+                        <span className="text-xs text-neutral-600 italic">
+                          Règle de la paume : la paume de la victime (doigts compris) ≈ 1 % de sa
+                          surface corporelle — pratique pour ajuster sur des brûlures dispersées ou
+                          plus petites qu'une zone entière.
+                        </span>
+                        <InlineCatBox items={getBruleEtendueCat()} />
+                      </div>
+                      <div className="flex flex-col gap-1.5">
+                        <span className="text-xs text-neutral-500 uppercase tracking-wide">Localisation</span>
+                        <InputBox
+                          value={form.BRULURE.brulure_loc}
+                          onChange={(v) => updateField('BRULURE', 'brulure_loc', v)}
+                          placeholder="ex. avant-bras droit"
+                          width="w-48"
+                        />
+                      </div>
+                    </>
+                  )}
                 </div>
               )}
             </div>
