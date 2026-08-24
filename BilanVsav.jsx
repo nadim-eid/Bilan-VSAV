@@ -230,6 +230,48 @@ const REPAS_OPTIONS = [
   { value: 'soir', label: 'Soir' },
 ];
 
+const PQRST_P_OPTIONS = [
+  { value: 'effort', label: 'Effort / mouvement' },
+  { value: 'repos', label: 'Repos' },
+  { value: 'inspiration', label: 'Inspiration profonde' },
+  { value: 'palpation', label: 'Palpation' },
+  { value: 'position', label: 'Position' },
+  { value: 'stress', label: 'Stress / émotion' },
+  { value: 'repas', label: 'Repas' },
+];
+
+const PQRST_Q_OPTIONS = [
+  { value: 'brulure', label: 'Brûlure' },
+  { value: 'oppression', label: 'Oppression' },
+  { value: 'poignard', label: 'Coup de poignard' },
+  { value: 'serrement', label: 'Serrement' },
+  { value: 'crampe', label: 'Crampe' },
+  { value: 'pesanteur', label: 'Pesanteur' },
+  { value: 'decharge', label: 'Décharge électrique' },
+];
+
+const PQRST_R_OPTIONS = [
+  { value: 'thorax', label: 'Thorax' },
+  { value: 'bras_gauche', label: 'Bras gauche' },
+  { value: 'bras_droit', label: 'Bras droit' },
+  { value: 'machoire', label: 'Mâchoire' },
+  { value: 'dos', label: 'Dos' },
+  { value: 'abdomen', label: 'Abdomen' },
+  { value: 'epaule', label: 'Épaule' },
+  { value: 'cou', label: 'Cou' },
+  { value: 'sans_irradiation', label: 'Sans irradiation' },
+];
+
+const PQRST_T_OPTIONS = [
+  { value: 'brutal', label: 'Début brutal' },
+  { value: 'progressif', label: 'Début progressif' },
+  { value: 'continue', label: 'Continue' },
+  { value: 'intermittente', label: 'Intermittente' },
+  { value: 'aggravation', label: 'En aggravation' },
+  { value: 'stable', label: 'Stable' },
+  { value: 'amelioration', label: 'En amélioration' },
+];
+
 const optsToLabels = (opts) => Object.fromEntries(opts.map((o) => [o.value, o.label]));
 
 const FIELD_LABELS = {
@@ -275,6 +317,16 @@ const FIELD_LABELS = {
   speech: 'Speech (parole)',
   temps: "Heure d'apparition",
   sampler_s: 'S — Signes et symptômes',
+  pqrst_p: 'PQRST — P (Provoqué / Palliatif)',
+  pqrst_p_text: 'PQRST — P (détail)',
+  pqrst_q: 'PQRST — Q (Qualité)',
+  pqrst_q_text: 'PQRST — Q (détail)',
+  pqrst_r: 'PQRST — R (Région / Irradiation)',
+  pqrst_r_text: 'PQRST — R (détail)',
+  pqrst_s: 'PQRST — S (Sévérité)',
+  pqrst_s_text: 'PQRST — S (détail)',
+  pqrst_t: 'PQRST — T (Temps)',
+  pqrst_t_text: 'PQRST — T (détail)',
   sampler_a_choices: "A — Type d'allergie",
   sampler_a: 'A — Allergies (détail)',
   sampler_m: 'M — Médicaments',
@@ -298,6 +350,16 @@ const PAGE_FIELDS = {
   FAST: ['face', 'arm', 'speech', 'temps'],
   SAMPLER: [
     'sampler_s',
+    'pqrst_p',
+    'pqrst_p_text',
+    'pqrst_q',
+    'pqrst_q_text',
+    'pqrst_r',
+    'pqrst_r_text',
+    'pqrst_s',
+    'pqrst_s_text',
+    'pqrst_t',
+    'pqrst_t_text',
     'sampler_a_choices',
     'sampler_a',
     'sampler_m',
@@ -319,6 +381,7 @@ const UNITS = {
   pa_gauche: 'mmHg',
   pa_droite: 'mmHg',
   eva: '/10',
+  pqrst_s: '/10',
   brulure_etendue: '% SC',
 };
 
@@ -347,6 +410,11 @@ const VALUE_LABELS = {
   sampler_a_choices: optsToLabels(ALLERGY_OPTIONS),
   sampler_p_choices: optsToLabels(ANTECEDENTS_OPTIONS),
   sampler_l_choice: optsToLabels(REPAS_OPTIONS),
+  pqrst_p: optsToLabels(PQRST_P_OPTIONS),
+  pqrst_q: optsToLabels(PQRST_Q_OPTIONS),
+  pqrst_r: optsToLabels(PQRST_R_OPTIONS),
+  pqrst_s: optsToLabels(EVA_OPTIONS),
+  pqrst_t: optsToLabels(PQRST_T_OPTIONS),
   fr_signes: optsToLabels(BREATH_SIGNS),
   spo2_mode: optsToLabels(SPO2_MODE),
   pouls_sym: optsToLabels(OUI_NON),
@@ -436,6 +504,17 @@ const initialForm = () => ({
   FAST: { face: '', arm: '', speech: '', temps: '' },
   SAMPLER: {
     sampler_s: '',
+    pqrst_active: '',
+    pqrst_p: [],
+    pqrst_p_text: '',
+    pqrst_q: [],
+    pqrst_q_text: '',
+    pqrst_r: [],
+    pqrst_r_text: '',
+    pqrst_s: '',
+    pqrst_s_text: '',
+    pqrst_t: [],
+    pqrst_t_text: '',
     sampler_a_choices: [],
     sampler_a: '',
     sampler_m: '',
@@ -710,6 +789,33 @@ function TorchButton() {
         {torch.on ? 'Éteindre' : 'Lampe torche'}
       </button>
       {torch.error && <span className="text-xs text-red-400">{torch.error}</span>}
+    </div>
+  );
+}
+
+function PqrstRow({ letter, label, options, value, onChange, textValue, onTextChange, multi = true }) {
+  return (
+    <div className="flex flex-col gap-1.5">
+      <div className="flex items-center gap-2">
+        <span
+          className="w-5 h-5 rounded flex items-center justify-center text-white text-xs font-bold shrink-0"
+          style={{ backgroundColor: ACCENT, fontFamily: "'Barlow Condensed', sans-serif" }}
+        >
+          {letter}
+        </span>
+        <span className="text-xs font-semibold text-neutral-300 uppercase tracking-wide">{label}</span>
+      </div>
+      {multi ? (
+        <MultiToggleGroup value={value} onChange={onChange} options={options} />
+      ) : (
+        <ToggleGroup value={value} onChange={onChange} options={options} />
+      )}
+      <InputBox
+        value={textValue}
+        onChange={onTextChange}
+        placeholder="Détail complémentaire (optionnel)"
+        width="w-full"
+      />
     </div>
   );
 }
@@ -1801,6 +1907,75 @@ export default function BilanVsav() {
             value={form.SAMPLER.sampler_s}
             onChange={(v) => updateField('SAMPLER', 'sampler_s', v)}
           />
+          <button
+            onClick={() =>
+              updateField('SAMPLER', 'pqrst_active', form.SAMPLER.pqrst_active === 'oui' ? '' : 'oui')
+            }
+            className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide px-3 py-2 rounded-md self-start"
+            style={
+              form.SAMPLER.pqrst_active === 'oui'
+                ? { backgroundColor: ACCENT, color: '#fff' }
+                : { backgroundColor: '#262626', color: '#e5e5e5' }
+            }
+          >
+            Douleur (PQRST)
+          </button>
+          {form.SAMPLER.pqrst_active === 'oui' && (
+            <div className="bg-neutral-900 border border-neutral-800 rounded-lg p-4 flex flex-col gap-4">
+              <h4
+                className="text-sm font-bold uppercase tracking-wide text-neutral-300"
+                style={{ fontFamily: "'Barlow Condensed', sans-serif" }}
+              >
+                PQRST — Douleur
+              </h4>
+              <PqrstRow
+                letter="P"
+                label="Provoqué / Palliatif"
+                options={PQRST_P_OPTIONS}
+                value={form.SAMPLER.pqrst_p}
+                onChange={(v) => updateField('SAMPLER', 'pqrst_p', v)}
+                textValue={form.SAMPLER.pqrst_p_text}
+                onTextChange={(v) => updateField('SAMPLER', 'pqrst_p_text', v)}
+              />
+              <PqrstRow
+                letter="Q"
+                label="Qualité"
+                options={PQRST_Q_OPTIONS}
+                value={form.SAMPLER.pqrst_q}
+                onChange={(v) => updateField('SAMPLER', 'pqrst_q', v)}
+                textValue={form.SAMPLER.pqrst_q_text}
+                onTextChange={(v) => updateField('SAMPLER', 'pqrst_q_text', v)}
+              />
+              <PqrstRow
+                letter="R"
+                label="Région / Irradiation"
+                options={PQRST_R_OPTIONS}
+                value={form.SAMPLER.pqrst_r}
+                onChange={(v) => updateField('SAMPLER', 'pqrst_r', v)}
+                textValue={form.SAMPLER.pqrst_r_text}
+                onTextChange={(v) => updateField('SAMPLER', 'pqrst_r_text', v)}
+              />
+              <PqrstRow
+                letter="S"
+                label="Sévérité (EVA 0-10)"
+                options={EVA_OPTIONS}
+                value={form.SAMPLER.pqrst_s}
+                onChange={(v) => updateField('SAMPLER', 'pqrst_s', v)}
+                textValue={form.SAMPLER.pqrst_s_text}
+                onTextChange={(v) => updateField('SAMPLER', 'pqrst_s_text', v)}
+                multi={false}
+              />
+              <PqrstRow
+                letter="T"
+                label="Temps"
+                options={PQRST_T_OPTIONS}
+                value={form.SAMPLER.pqrst_t}
+                onChange={(v) => updateField('SAMPLER', 'pqrst_t', v)}
+                textValue={form.SAMPLER.pqrst_t_text}
+                onTextChange={(v) => updateField('SAMPLER', 'pqrst_t_text', v)}
+              />
+            </div>
+          )}
           <SamplerField
             letter="A"
             label="Allergies"
