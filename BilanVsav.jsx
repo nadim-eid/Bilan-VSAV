@@ -187,6 +187,40 @@ const BRULURE_ZONE_OPTIONS = BRULURE_ZONES_9.map((z) => ({
   label: `${z.label} (${z.pct}%)`,
 }));
 
+const DOULEUR_LOC_OPTIONS = [
+  { value: 'tete', label: 'Tête' },
+  { value: 'cervicale', label: 'Cervicale / Nuque' },
+  { value: 'thorax', label: 'Thorax' },
+  { value: 'abdomen', label: 'Abdomen' },
+  { value: 'lombaire', label: 'Lombaire' },
+  { value: 'dos', label: 'Dos' },
+  { value: 'bassin', label: 'Bassin' },
+  { value: 'membre_sup', label: 'Membre supérieur' },
+  { value: 'membre_inf', label: 'Membre inférieur' },
+  { value: 'diffuse', label: 'Diffuse' },
+];
+
+const BRULURE_LOC_OPTIONS = [
+  { value: 'visage', label: 'Visage' },
+  { value: 'mains', label: 'Mains' },
+  { value: 'pieds', label: 'Pieds' },
+  { value: 'perinee', label: 'Périnée / organes génitaux' },
+  { value: 'thorax', label: 'Thorax' },
+  { value: 'dos', label: 'Dos' },
+  { value: 'abdomen', label: 'Abdomen' },
+  { value: 'membre_sup', label: 'Membre supérieur' },
+  { value: 'membre_inf', label: 'Membre inférieur' },
+];
+
+// "Blood box" — les 4 compartiments classiques d'hémorragie interne occulte chez le
+// traumatisé (en plus de l'hémorragie extériorisée déjà relevée sur la page X).
+const BLOOD_BOX_OPTIONS = [
+  { value: 'thorax', label: 'Thorax' },
+  { value: 'abdomen', label: 'Abdomen' },
+  { value: 'bassin', label: 'Bassin / Pelvis' },
+  { value: 'cuisses', label: 'Cuisses' },
+];
+
 const BREATH_SIGNS = [
   { value: 'battement_ailes_nez', label: 'Battement des ailes du nez' },
   { value: 'balancement_thoraco_abdo', label: 'Balancement thoraco-abdominal' },
@@ -315,6 +349,7 @@ const FIELD_LABELS = {
   pouls_frappe: 'Pouls bien frappé',
   trc: 'TRC',
   signes: 'Signes associés',
+  blood_box: 'Blood box — hémorragie interne suspectée',
   hemorragie: 'Hémorragie',
   hemorragie_sites: 'Localisation(s) hémorragie',
   pci: 'PCI',
@@ -327,7 +362,8 @@ const FIELD_LABELS = {
   sens_mains: 'Sensibilité / motricité mains',
   sens_pieds: 'Sensibilité / motricité pieds',
   eva: 'Douleur (EVA)',
-  douleur_loc: 'Localisation douleur',
+  douleur_loc_choices: 'Zone(s) douloureuse(s)',
+  douleur_loc: 'Localisation douleur (détail)',
   glycemie: 'Glycémie',
   temperature: 'Température',
   victime_env: 'Victime retrouvée au',
@@ -335,7 +371,8 @@ const FIELD_LABELS = {
   brulure_degre: 'Degré',
   brulure_zones: 'Zones atteintes (règle des 9)',
   brulure_etendue: 'Étendue',
-  brulure_loc: 'Localisation brûlure',
+  brulure_loc_choices: 'Zone(s) brûlée(s)',
+  brulure_loc: 'Localisation brûlure (détail)',
   brulure_type: 'Type de brûlure',
   lesion: 'Lésion cachée',
   face: 'Face',
@@ -359,10 +396,10 @@ const PAGE_FIELDS = {
   X: ['trauma', 'hemorragie', 'hemorragie_sites'],
   A: ['obstruction'],
   B: ['fr', 'fr_signes', 'spo2', 'spo2_mode'],
-  C: ['fc', 'pa_gauche', 'pa_droite', 'pouls_sym', 'pouls_frappe', 'trc', 'signes'],
-  D: ['pci', 'pc_repete', 'pc_nombre', 'etat', 'orientation', 'neuro_signes', 'pupilles', 'sens_mains', 'sens_pieds', 'eva', 'douleur_loc', 'glycemie'],
+  C: ['fc', 'pa_gauche', 'pa_droite', 'pouls_sym', 'pouls_frappe', 'trc', 'signes', 'blood_box'],
+  D: ['pci', 'pc_repete', 'pc_nombre', 'etat', 'orientation', 'neuro_signes', 'pupilles', 'sens_mains', 'sens_pieds', 'eva', 'douleur_loc_choices', 'douleur_loc', 'glycemie'],
   E: ['temperature', 'victime_env', 'lesion'],
-  BRULURE: ['brulure', 'brulure_degre', 'brulure_type', 'brulure_zones', 'brulure_etendue', 'brulure_loc'],
+  BRULURE: ['brulure', 'brulure_degre', 'brulure_type', 'brulure_zones', 'brulure_etendue', 'brulure_loc_choices', 'brulure_loc'],
   FAST: ['face', 'arm', 'speech', 'temps'],
   SAMPLER: [
     'sampler_s',
@@ -421,6 +458,9 @@ const VALUE_LABELS = {
   pouls_frappe: optsToLabels(OUI_NON),
   trc: optsToLabels(TRC_OPTIONS),
   signes: optsToLabels(CIRC_SIGNS),
+  blood_box: optsToLabels(BLOOD_BOX_OPTIONS),
+  douleur_loc_choices: optsToLabels(DOULEUR_LOC_OPTIONS),
+  brulure_loc_choices: optsToLabels(BRULURE_LOC_OPTIONS),
   hemorragie: optsToLabels(OUI_NON),
   hemorragie_sites: optsToLabels(HEMORRAGIE_SITES),
   pci: optsToLabels(OUI_NON),
@@ -477,6 +517,7 @@ const initialForm = () => ({
     pouls_frappe: '',
     trc: '',
     signes: [],
+    blood_box: [],
   },
   D: {
     pci: '',
@@ -489,6 +530,7 @@ const initialForm = () => ({
     sens_mains: '',
     sens_pieds: '',
     eva: '',
+    douleur_loc_choices: [],
     douleur_loc: '',
     glycemie: '',
   },
@@ -498,6 +540,7 @@ const initialForm = () => ({
     brulure_degre: '',
     brulure_zones: [],
     brulure_etendue: '',
+    brulure_loc_choices: [],
     brulure_loc: '',
     brulure_type: '',
   },
@@ -1380,6 +1423,15 @@ export default function BilanVsav() {
     );
   }
 
+  function getBloodBoxCat() {
+    if (form.C.blood_box.length === 0) return [];
+    return catItem(
+      'blood_box',
+      'Suspicion d\u2019hémorragie interne',
+      'Alerter le 15 en urgence, transport médicalisé prioritaire, ne pas mobiliser inutilement, surveiller étroitement les signes de choc.'
+    );
+  }
+
   function getPciCat() {
     if (form.D.pci !== 'oui') return [];
     return catItem(
@@ -1819,6 +1871,27 @@ export default function BilanVsav() {
             />
           </FieldCard>
           <InlineCatBox items={getChocSignesCat()} />
+          {form.X.trauma === 'oui' && (
+            <>
+              <FieldCard
+                label="Blood box — hémorragie interne suspectée"
+                filled={form.C.blood_box.length > 0}
+              >
+                <div className="flex flex-col gap-1.5">
+                  <span className="text-xs text-neutral-600 italic">
+                    Compartiments à évaluer chez le traumatisé : thorax → abdomen → bassin/pelvis →
+                    cuisses.
+                  </span>
+                  <MultiToggleGroup
+                    value={form.C.blood_box}
+                    onChange={(v) => updateField('C', 'blood_box', v)}
+                    options={BLOOD_BOX_OPTIONS}
+                  />
+                </div>
+              </FieldCard>
+              <InlineCatBox items={getBloodBoxCat()} />
+            </>
+          )}
         </>
       );
     if (s === 'D')
@@ -1908,13 +1981,23 @@ export default function BilanVsav() {
             />
           </FieldCard>
           <InlineCatBox items={getDouleurIntenseCat()} />
-          <FieldCard label="Localisation douleur" filled={!!form.D.douleur_loc}>
-            <InputBox
-              value={form.D.douleur_loc}
-              onChange={(v) => updateField('D', 'douleur_loc', v)}
-              placeholder="ex. abdomen, jambe droite…"
-              width="w-48"
-            />
+          <FieldCard
+            label="Localisation douleur"
+            filled={form.D.douleur_loc_choices.length > 0 || !!form.D.douleur_loc}
+          >
+            <div className="flex flex-col gap-2">
+              <MultiToggleGroup
+                value={form.D.douleur_loc_choices}
+                onChange={(v) => updateField('D', 'douleur_loc_choices', v)}
+                options={DOULEUR_LOC_OPTIONS}
+              />
+              <InputBox
+                value={form.D.douleur_loc}
+                onChange={(v) => updateField('D', 'douleur_loc', v)}
+                placeholder="Précision si besoin"
+                width="w-full"
+              />
+            </div>
           </FieldCard>
           <FieldCard label="Glycémie" filled={!!form.D.glycemie}>
             <div className="flex flex-col gap-1">
@@ -2046,11 +2129,16 @@ export default function BilanVsav() {
                       </div>
                       <div className="flex flex-col gap-1.5">
                         <span className="text-xs text-neutral-500 uppercase tracking-wide">Localisation</span>
+                        <MultiToggleGroup
+                          value={form.BRULURE.brulure_loc_choices}
+                          onChange={(v) => updateField('BRULURE', 'brulure_loc_choices', v)}
+                          options={BRULURE_LOC_OPTIONS}
+                        />
                         <InputBox
                           value={form.BRULURE.brulure_loc}
                           onChange={(v) => updateField('BRULURE', 'brulure_loc', v)}
-                          placeholder="ex. avant-bras droit"
-                          width="w-48"
+                          placeholder="Précision si besoin"
+                          width="w-full"
                         />
                       </div>
                     </>
