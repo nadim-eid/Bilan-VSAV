@@ -322,6 +322,21 @@ const UNITS = {
   brulure_etendue: '% SC',
 };
 
+// Détecte automatiquement l'unité de la glycémie selon le format saisi :
+// une décimale (0.85, 1,15…) → g/L ; un nombre entier (85, 110…) → mg/dL.
+function detectGlycemieUnit(rawValue) {
+  if (!rawValue) return 'g/L';
+  return /[.,]/.test(String(rawValue)) ? 'g/L' : 'mg/dL';
+}
+
+// Convertit une valeur de glycémie saisie vers l'équivalent en g/L, quelle que
+// soit l'unité détectée — utilisé pour comparer aux plages de référence.
+function glycemieToGL(rawValue) {
+  const num = parseFloat(String(rawValue).replace(',', '.'));
+  if (isNaN(num)) return NaN;
+  return detectGlycemieUnit(rawValue) === 'mg/dL' ? num / 100 : num;
+}
+
 const VALUE_LABELS = {
   obstruction: optsToLabels(OUI_NON),
   trauma: optsToLabels(OUI_NON),
@@ -374,6 +389,7 @@ function formatValue(field, value) {
   if (value === '' || value === undefined || value === null) return null;
   const label = VALUE_LABELS[field] && VALUE_LABELS[field][value];
   if (label) return label;
+  if (field === 'glycemie') return `${value} ${detectGlycemieUnit(value)}`;
   const unit = UNITS[field];
   return unit ? `${value} ${unit}` : value;
 }
@@ -641,38 +657,25 @@ function InputBox({ value, onChange, unit, placeholder, numeric, width, onBlur, 
   );
 }
 
-function CatModal({ queue, onDismiss }) {
-  if (queue.length === 0) return null;
-  const current = queue[0];
+function InlineCatBox({ items }) {
+  if (!items || items.length === 0) return null;
   return (
-    <div
-      className="fixed inset-0 flex items-center justify-center z-50 px-4"
-      style={{ backgroundColor: 'rgba(0,0,0,0.75)' }}
-    >
-      <div
-        className="bg-neutral-950 border-2 rounded-2xl w-full sm:max-w-sm p-5"
-        style={{ borderColor: AMBER }}
-      >
-        <div className="flex items-center gap-2 mb-3">
-          <AlertTriangle size={20} style={{ color: AMBER }} />
-          <h3 className="font-bold text-base" style={{ fontFamily: "'Barlow Condensed', sans-serif" }}>
-            {current.title}
-          </h3>
-        </div>
-        <p className="text-sm text-neutral-300 mb-4 leading-relaxed">{current.message}</p>
-        <button
-          onClick={onDismiss}
-          className="w-full py-2.5 rounded-md font-semibold text-sm"
-          style={{ backgroundColor: AMBER, color: '#1a1200' }}
+    <div className="flex flex-col gap-2 mt-1">
+      {items.map((item) => (
+        <div
+          key={item.id}
+          className="flex flex-col gap-1.5 rounded-lg border-2 px-3 py-2.5"
+          style={{ borderColor: AMBER, backgroundColor: '#1A1508' }}
         >
-          Compris
-        </button>
-        {queue.length > 1 && (
-          <p className="text-xs text-neutral-600 text-center mt-2">
-            +{queue.length - 1} autre(s) alerte(s)
-          </p>
-        )}
-      </div>
+          <div className="flex items-center gap-2">
+            <AlertTriangle size={16} style={{ color: AMBER }} />
+            <span className="font-bold text-sm" style={{ fontFamily: "'Barlow Condensed', sans-serif" }}>
+              {item.title}
+            </span>
+          </div>
+          <p className="text-xs text-neutral-300 leading-relaxed">{item.message}</p>
+        </div>
+      ))}
     </div>
   );
 }
@@ -1006,8 +1009,6 @@ export default function BilanVsav() {
   const [loadingHistory, setLoadingHistory] = useState(true);
   const [showHistory, setShowHistory] = useState(false);
   const [viewing, setViewing] = useState(null);
-  const [catQueue, setCatQueue] = useState([]);
-  const shownCatIds = useRef(new Set());
   const bilanStartRef = useRef(null);
   const [bilanDuration, setBilanDuration] = useState(null);
 
@@ -1060,14 +1061,64 @@ export default function BilanVsav() {
     if (saved) setSaved(false);
   }
 
-  // Vérifie l'ensemble des constats d'une page (B, C, D ou E) d'un coup, au moment
-  // de passer à la suivante — plutôt que d'interrompre la saisie champ par champ.
-  function checkPageOnNext(page) {
+  // Compare une valeur à la plage normale de la catégorie de victime sélectionnée.
+  // Renvoie 'low', 'high', ou null si dans la norme / non évaluable.
+  function getAbnormalDirection(field, rawValue) {
+    const categorie = form.TYPE.categorie;
+    if (!categorie || !rawValue) return null;
+    const range = PATIENT_CATEGORIES[categorie]?.ranges[field];
+    if (!range) return null;
+    const num = field === 'glycemie' ? glycemieToGL(rawValue) : parseFloat(String(rawValue).replace(',', '.'));
+    if (isNaN(num)) return null;
+    if (num < range[0]) return 'low';
+    if (num > range[1]) return 'high';
+    return null;
+  }
+
+  function isAbnormalField(field, rawValue) {
+    return getAbnormalDirection(field, rawValue) !== null;
+  }
+
+  // Calcule, à chaque rendu, les conduites à tenir applicables à la page en cours —
+  // affichées en direct sous la saisie, jamais en popup, jamais sur le récap.
+  function getPageCatMessages(page) {
+    const items = [];
+    const add = (id, title, message) => items.push({ id, title, message });
+    const fromTable = (field, rawValue) => {
+      const dir = getAbnormalDirection(field, rawValue);
+      if (dir) add(`${field}_${dir}`, CAT_MESSAGES[field][dir].title, CAT_MESSAGES[field][dir].message);
+    };
+
+    if (page === 'X') {
+      if (form.X.trauma === 'oui') {
+        add(
+          'trauma',
+          'Victime traumatisée',
+          'Maintien de la tête (ne pas mobiliser le rachis), pose d\u2019un collier cervical si disponible. Position : allongée en rectitude, ne pas laisser la victime bouger, alerter le 15.'
+        );
+      }
+      if (form.X.hemorragie === 'oui') {
+        add(
+          'hemorragie',
+          'Hémorragie',
+          'Compression manuelle directe sur la plaie (ou garrot si hémorragie massive incontrôlable). Position : allongée sur le dos, jambes légèrement surélevées si pas de contre-indication. Couvrir pour prévenir l\u2019hypothermie, oxygénothérapie si disponible, alerter le 15.'
+        );
+      }
+    }
+    if (page === 'A') {
+      if (form.A.obstruction === 'non') {
+        add(
+          'airway_obstruee',
+          'Voies aériennes obstruées',
+          'Désobstruction immédiate (claques dans le dos puis compressions abdominales si conscient ; LVA et recherche de corps étranger si inconscient).'
+        );
+      }
+    }
     if (page === 'B') {
-      checkAndAlert('fr', form.B.fr);
-      checkAndAlert('spo2', form.B.spo2);
+      fromTable('fr', form.B.fr);
+      fromTable('spo2', form.B.spo2);
       if (form.B.fr_signes.length > 0) {
-        pushCat(
+        add(
           'resp_signes',
           'Signes de détresse respiratoire',
           'Position demi-assise, oxygénothérapie si disponible, surveillance rapprochée, alerter le 15.'
@@ -1075,32 +1126,32 @@ export default function BilanVsav() {
       }
     }
     if (page === 'C') {
-      checkAndAlert('fc', form.C.fc);
-      checkAndAlert('pa_sys', form.C.pa_gauche_sys);
-      checkAndAlert('pa_sys', form.C.pa_droite_sys);
+      fromTable('fc', form.C.fc);
+      const paDir = getAbnormalDirection('pa_sys', form.C.pa_gauche_sys) || getAbnormalDirection('pa_sys', form.C.pa_droite_sys);
+      if (paDir) add(`pa_sys_${paDir}`, CAT_MESSAGES.pa_sys[paDir].title, CAT_MESSAGES.pa_sys[paDir].message);
       if (form.C.pouls_sym === 'non') {
-        pushCat(
+        add(
           'pouls_asym',
           'Pouls asymétrique',
           "Suspicion d'atteinte vasculaire : ne pas mobiliser le membre concerné, alerter le 15."
         );
       }
       if (form.C.pouls_frappe === 'non') {
-        pushCat(
+        add(
           'pouls_faible',
           'Pouls mal frappé',
           'Signe de choc possible : position d\u2019attente (allongée, jambes surélevées sauf contre-indication), alerter le 15.'
         );
       }
       if (form.C.trc === '>2s') {
-        pushCat(
+        add(
           'trc_long',
           'TRC > 2 secondes',
           'Signe de choc : position d\u2019attente (allongée, jambes surélevées sauf contre-indication), couvrir, alerter le 15.'
         );
       }
       if (form.C.signes.length > 0) {
-        pushCat(
+        add(
           'choc_signes',
           'Signes de choc',
           'Position d\u2019attente (allongée, jambes surélevées sauf contre-indication), couvrir, alerter le 15.'
@@ -1120,7 +1171,7 @@ export default function BilanVsav() {
         (form.D.eva && parseInt(form.D.eva, 10) >= 7) ||
         isAbnormalField('glycemie', form.D.glycemie);
       if (neuroDetresse) {
-        pushCat(
+        add(
           'neuro_detresse',
           'Détresse neurologique détectée',
           'Position d\u2019attente : PLS si respiration spontanée et pas de trauma suspecté (sinon maintien tête). Ne pas laisser seul, surveillance neurologique rapprochée, alerter le 15.'
@@ -1128,16 +1179,16 @@ export default function BilanVsav() {
       }
     }
     if (page === 'E') {
-      checkAndAlert('temperature', form.E.temperature);
+      fromTable('temperature', form.E.temperature);
       if (form.E.victime_env === 'froid') {
-        pushCat(
+        add(
           'victime_froid',
           'Victime en ambiance froide',
           'Position d\u2019attente : réchauffement progressif, couverture, isolation du sol, retirer les vêtements mouillés.'
         );
       }
       if (form.E.lesion === 'oui') {
-        pushCat(
+        add(
           'lesion_cachee',
           'Lésion cachée détectée',
           'Réexaminer entièrement la victime, couvrir/protéger la zone, alerter le 15 si nécessaire.'
@@ -1147,15 +1198,22 @@ export default function BilanVsav() {
     if (page === 'BRULURE') {
       if (form.BRULURE.brulure === 'oui') {
         const entry = BURN_CAT_BY_TYPE[form.BRULURE.brulure_type] || BURN_CAT_DEFAULT;
-        pushCat('brulure', entry.title, entry.message);
+        add('brulure', entry.title, entry.message);
       }
     }
+    if (page === 'FAST') {
+      if (form.FAST.face === 'oui' || form.FAST.arm === 'oui' || form.FAST.speech === 'oui') {
+        add(
+          'fast_positif',
+          'Signe FAST positif — suspicion AVC',
+          "Noter précisément l'heure d'apparition des signes, alerter le 15 en urgence, ne rien donner par voie orale."
+        );
+      }
+    }
+    return items;
   }
 
   function goNext() {
-    if (['B', 'C', 'D', 'E', 'BRULURE'].includes(STEPS[step])) {
-      checkPageOnNext(STEPS[step]);
-    }
     setStep((s) => Math.min(s + 1, STEPS.length - 1));
   }
   function goPrev() {
@@ -1193,49 +1251,8 @@ export default function BilanVsav() {
     setSaved(false);
     setSavedAt(null);
     setPatientNum((n) => n + 1);
-    setCatQueue([]);
-    shownCatIds.current = new Set();
     bilanStartRef.current = null;
     setBilanDuration(null);
-  }
-
-  function pushCat(id, title, message) {
-    if (shownCatIds.current.has(id)) return;
-    shownCatIds.current.add(id);
-    setCatQueue((q) => [...q, { id, title, message }]);
-  }
-
-  function dismissCat() {
-    setCatQueue((q) => q.slice(1));
-  }
-
-  // Compare une valeur à la plage normale de la catégorie de victime sélectionnée.
-  // Renvoie 'low', 'high', ou null si dans la norme / non évaluable.
-  function getAbnormalDirection(field, rawValue) {
-    const categorie = form.TYPE.categorie;
-    if (!categorie || !rawValue) return null;
-    const range = PATIENT_CATEGORIES[categorie]?.ranges[field];
-    if (!range) return null;
-    let num = parseFloat(String(rawValue).replace(',', '.'));
-    if (isNaN(num)) return null;
-    // La glycémie se note en g/L (ex. 0,85). Si quelqu'un tape par habitude en
-    // mg/dL (ex. 85), on convertit avant de comparer plutôt que de tout signaler hors norme.
-    if (field === 'glycemie' && num >= 15) num = num / 100;
-    if (num < range[0]) return 'low';
-    if (num > range[1]) return 'high';
-    return null;
-  }
-
-  function isAbnormalField(field, rawValue) {
-    return getAbnormalDirection(field, rawValue) !== null;
-  }
-
-  function checkAndAlert(field, rawValue) {
-    const dir = getAbnormalDirection(field, rawValue);
-    if (!dir) return;
-    const entry = CAT_MESSAGES[field] && CAT_MESSAGES[field][dir];
-    if (!entry) return;
-    pushCat(`${field}_${dir}`, entry.title, entry.message);
   }
 
   async function clearHistory() {
@@ -1310,16 +1327,7 @@ export default function BilanVsav() {
           <FieldCard label="Victime traumatisée" filled={!!form.X.trauma}>
             <ToggleGroup
               value={form.X.trauma}
-              onChange={(v) => {
-                updateField('X', 'trauma', v);
-                if (v === 'oui') {
-                  pushCat(
-                    'trauma',
-                    'Victime traumatisée',
-                    'Maintien de la tête (ne pas mobiliser le rachis), pose d\u2019un collier cervical si disponible. Position : allongée en rectitude, ne pas laisser la victime bouger, alerter le 15.'
-                  );
-                }
-              }}
+              onChange={(v) => updateField('X', 'trauma', v)}
               options={OUI_NON}
             />
           </FieldCard>
@@ -1330,13 +1338,6 @@ export default function BilanVsav() {
                 onChange={(v) => {
                   updateField('X', 'hemorragie', v);
                   if (v !== 'oui') updateField('X', 'hemorragie_sites', []);
-                  if (v === 'oui') {
-                    pushCat(
-                      'hemorragie',
-                      'Hémorragie',
-                      'Compression manuelle directe sur la plaie (ou garrot si hémorragie massive incontrôlable). Position : allongée sur le dos, jambes légèrement surélevées si pas de contre-indication. Couvrir pour prévenir l\u2019hypothermie, oxygénothérapie si disponible, alerter le 15.'
-                    );
-                  }
                 }}
                 options={OUI_NON}
               />
@@ -1362,16 +1363,7 @@ export default function BilanVsav() {
           <FieldCard label="Liberté des voies aériennes" filled={!!form.A.obstruction}>
             <ToggleGroup
               value={form.A.obstruction}
-              onChange={(v) => {
-                updateField('A', 'obstruction', v);
-                if (v === 'non') {
-                  pushCat(
-                    'airway_obstruee',
-                    'Voies aériennes obstruées',
-                    'Désobstruction immédiate (claques dans le dos puis compressions abdominales si conscient ; LVA et recherche de corps étranger si inconscient).'
-                  );
-                }
-              }}
+              onChange={(v) => updateField('A', 'obstruction', v)}
               options={OUI_NON}
             />
           </FieldCard>
@@ -1613,8 +1605,8 @@ export default function BilanVsav() {
               value={form.D.glycemie}
               onChange={(v) => updateField('D', 'glycemie', v)}
               abnormal={isAbnormalField('glycemie', form.D.glycemie)}
-              unit="g/L"
-              placeholder="ex. 0,85"
+              unit={detectGlycemieUnit(form.D.glycemie)}
+              placeholder="0,85 ou 85"
               numeric="decimal"
             />
           </FieldCard>
@@ -1740,48 +1732,21 @@ export default function BilanVsav() {
           <FieldCard label="Face" filled={!!form.FAST.face}>
             <ToggleGroup
               value={form.FAST.face}
-              onChange={(v) => {
-                updateField('FAST', 'face', v);
-                if (v === 'oui') {
-                  pushCat(
-                    'fast_positif',
-                    'Signe FAST positif — suspicion AVC',
-                    "Noter précisément l'heure d'apparition des signes, alerter le 15 en urgence, ne rien donner par voie orale."
-                  );
-                }
-              }}
+              onChange={(v) => updateField('FAST', 'face', v)}
               options={OUI_NON}
             />
           </FieldCard>
           <FieldCard label="Arm (bras)" filled={!!form.FAST.arm}>
             <ToggleGroup
               value={form.FAST.arm}
-              onChange={(v) => {
-                updateField('FAST', 'arm', v);
-                if (v === 'oui') {
-                  pushCat(
-                    'fast_positif',
-                    'Signe FAST positif — suspicion AVC',
-                    "Noter précisément l'heure d'apparition des signes, alerter le 15 en urgence, ne rien donner par voie orale."
-                  );
-                }
-              }}
+              onChange={(v) => updateField('FAST', 'arm', v)}
               options={OUI_NON}
             />
           </FieldCard>
           <FieldCard label="Speech (parole)" filled={!!form.FAST.speech}>
             <ToggleGroup
               value={form.FAST.speech}
-              onChange={(v) => {
-                updateField('FAST', 'speech', v);
-                if (v === 'oui') {
-                  pushCat(
-                    'fast_positif',
-                    'Signe FAST positif — suspicion AVC',
-                    "Noter précisément l'heure d'apparition des signes, alerter le 15 en urgence, ne rien donner par voie orale."
-                  );
-                }
-              }}
+              onChange={(v) => updateField('FAST', 'speech', v)}
               options={OUI_NON}
             />
           </FieldCard>
@@ -1928,6 +1893,7 @@ export default function BilanVsav() {
       <main ref={mainRef} className="flex-1 overflow-y-auto px-4 py-4">
         <div key={step} className="step-fade flex flex-col gap-3">
           {renderStepContent()}
+          <InlineCatBox items={getPageCatMessages(STEPS[step])} />
         </div>
       </main>
 
@@ -2054,8 +2020,6 @@ export default function BilanVsav() {
           </div>
         </div>
       )}
-
-      <CatModal queue={catQueue} onDismiss={dismissCat} />
     </div>
   );
 }
