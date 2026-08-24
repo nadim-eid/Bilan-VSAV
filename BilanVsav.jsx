@@ -187,19 +187,6 @@ const BRULURE_ZONE_OPTIONS = BRULURE_ZONES_9.map((z) => ({
   label: `${z.label} (${z.pct}%)`,
 }));
 
-const DOULEUR_LOC_OPTIONS = [
-  { value: 'tete', label: 'Tête' },
-  { value: 'cervicale', label: 'Cervicale / Nuque' },
-  { value: 'thorax', label: 'Thorax' },
-  { value: 'abdomen', label: 'Abdomen' },
-  { value: 'lombaire', label: 'Lombaire' },
-  { value: 'dos', label: 'Dos' },
-  { value: 'bassin', label: 'Bassin' },
-  { value: 'membre_sup', label: 'Membre supérieur' },
-  { value: 'membre_inf', label: 'Membre inférieur' },
-  { value: 'diffuse', label: 'Diffuse' },
-];
-
 const BRULURE_LOC_OPTIONS = [
   { value: 'visage', label: 'Visage' },
   { value: 'mains', label: 'Mains' },
@@ -219,6 +206,7 @@ const BLOOD_BOX_OPTIONS = [
   { value: 'abdomen', label: 'Abdomen' },
   { value: 'bassin', label: 'Bassin / Pelvis' },
   { value: 'cuisses', label: 'Cuisses' },
+  { value: 'non_detecte', label: 'Non détecté' },
 ];
 
 const BREATH_SIGNS = [
@@ -361,9 +349,6 @@ const FIELD_LABELS = {
   pupilles: 'Pupilles sym., taille normale, réactives',
   sens_mains: 'Sensibilité / motricité mains',
   sens_pieds: 'Sensibilité / motricité pieds',
-  eva: 'Douleur (EVA)',
-  douleur_loc_choices: 'Zone(s) douloureuse(s)',
-  douleur_loc: 'Localisation douleur (détail)',
   glycemie: 'Glycémie',
   temperature: 'Température',
   victime_env: 'Victime retrouvée au',
@@ -397,7 +382,7 @@ const PAGE_FIELDS = {
   A: ['obstruction'],
   B: ['fr', 'fr_signes', 'spo2', 'spo2_mode'],
   C: ['fc', 'pa_gauche', 'pa_droite', 'pouls_sym', 'pouls_frappe', 'trc', 'signes', 'blood_box'],
-  D: ['pci', 'pc_repete', 'pc_nombre', 'etat', 'orientation', 'neuro_signes', 'pupilles', 'sens_mains', 'sens_pieds', 'eva', 'douleur_loc_choices', 'douleur_loc', 'glycemie'],
+  D: ['pci', 'pc_repete', 'pc_nombre', 'etat', 'orientation', 'neuro_signes', 'pupilles', 'sens_mains', 'sens_pieds', 'glycemie'],
   E: ['temperature', 'victime_env', 'lesion'],
   BRULURE: ['brulure', 'brulure_degre', 'brulure_type', 'brulure_zones', 'brulure_etendue', 'brulure_loc_choices', 'brulure_loc'],
   FAST: ['face', 'arm', 'speech', 'temps'],
@@ -423,7 +408,6 @@ const UNITS = {
   temperature: '°C',
   pa_gauche: 'mmHg',
   pa_droite: 'mmHg',
-  eva: '/10',
   brulure_etendue: '% SC',
 };
 
@@ -459,7 +443,6 @@ const VALUE_LABELS = {
   trc: optsToLabels(TRC_OPTIONS),
   signes: optsToLabels(CIRC_SIGNS),
   blood_box: optsToLabels(BLOOD_BOX_OPTIONS),
-  douleur_loc_choices: optsToLabels(DOULEUR_LOC_OPTIONS),
   brulure_loc_choices: optsToLabels(BRULURE_LOC_OPTIONS),
   hemorragie: optsToLabels(OUI_NON),
   hemorragie_sites: optsToLabels(HEMORRAGIE_SITES),
@@ -529,9 +512,6 @@ const initialForm = () => ({
     pupilles: '',
     sens_mains: '',
     sens_pieds: '',
-    eva: '',
-    douleur_loc_choices: [],
-    douleur_loc: '',
     glycemie: '',
   },
   E: { temperature: '', victime_env: '', lesion: '' },
@@ -1424,7 +1404,8 @@ export default function BilanVsav() {
   }
 
   function getBloodBoxCat() {
-    if (form.C.blood_box.length === 0) return [];
+    const positive = form.C.blood_box.filter((v) => v !== 'non_detecte');
+    if (positive.length === 0) return [];
     return catItem(
       'blood_box',
       'Suspicion d\u2019hémorragie interne',
@@ -1494,15 +1475,6 @@ export default function BilanVsav() {
   function getSensPiedsCat() {
     if (form.D.sens_pieds !== 'non') return [];
     return catItem('sens_pieds', 'Déficit sensitivo-moteur (pieds)', 'Ne pas mobiliser, immobiliser, alerter le 15.');
-  }
-
-  function getDouleurIntenseCat() {
-    if (!form.D.eva || parseInt(form.D.eva, 10) < 7) return [];
-    return catItem(
-      'douleur_intense',
-      'Douleur intense (EVA ≥ 7)',
-      'Installer en position antalgique, alerter le 15 pour prise en charge de la douleur.'
-    );
   }
 
   function getVictimeFroidCat() {
@@ -1884,7 +1856,17 @@ export default function BilanVsav() {
                   </span>
                   <MultiToggleGroup
                     value={form.C.blood_box}
-                    onChange={(v) => updateField('C', 'blood_box', v)}
+                    onChange={(v) => {
+                      const justAddedNonDetecte =
+                        v.includes('non_detecte') && !form.C.blood_box.includes('non_detecte');
+                      let next = v;
+                      if (justAddedNonDetecte) {
+                        next = ['non_detecte'];
+                      } else if (v.includes('non_detecte') && v.length > 1) {
+                        next = v.filter((x) => x !== 'non_detecte');
+                      }
+                      updateField('C', 'blood_box', next);
+                    }}
                     options={BLOOD_BOX_OPTIONS}
                   />
                 </div>
@@ -1973,32 +1955,6 @@ export default function BilanVsav() {
             />
           </FieldCard>
           <InlineCatBox items={getSensPiedsCat()} />
-          <FieldCard label="Douleur (EVA)" filled={!!form.D.eva}>
-            <ToggleGroup
-              value={form.D.eva}
-              onChange={(v) => updateField('D', 'eva', v)}
-              options={EVA_OPTIONS}
-            />
-          </FieldCard>
-          <InlineCatBox items={getDouleurIntenseCat()} />
-          <FieldCard
-            label="Localisation douleur"
-            filled={form.D.douleur_loc_choices.length > 0 || !!form.D.douleur_loc}
-          >
-            <div className="flex flex-col gap-2">
-              <MultiToggleGroup
-                value={form.D.douleur_loc_choices}
-                onChange={(v) => updateField('D', 'douleur_loc_choices', v)}
-                options={DOULEUR_LOC_OPTIONS}
-              />
-              <InputBox
-                value={form.D.douleur_loc}
-                onChange={(v) => updateField('D', 'douleur_loc', v)}
-                placeholder="Précision si besoin"
-                width="w-full"
-              />
-            </div>
-          </FieldCard>
           <FieldCard label="Glycémie" filled={!!form.D.glycemie}>
             <div className="flex flex-col gap-1">
               <InputBox
