@@ -1452,7 +1452,7 @@ export default function BilanVsav() {
                   value={form.C.pa_gauche_sys}
                   onChange={(v) => updateField('C', 'pa_gauche_sys', v)}
                   abnormal={isAbnormalField('pa_sys', form.C.pa_gauche_sys)}
-                  placeholder="120"
+                  placeholder="Valeur"
                   numeric
                   width="w-20"
                 />
@@ -1464,7 +1464,7 @@ export default function BilanVsav() {
                   value={form.C.pa_gauche_dia}
                   onChange={(v) => updateField('C', 'pa_gauche_dia', v)}
                   unit="mmHg"
-                  placeholder="80"
+                  placeholder="Valeur"
                   numeric
                   width="w-20"
                 />
@@ -1482,7 +1482,7 @@ export default function BilanVsav() {
                   value={form.C.pa_droite_sys}
                   onChange={(v) => updateField('C', 'pa_droite_sys', v)}
                   abnormal={isAbnormalField('pa_sys', form.C.pa_droite_sys)}
-                  placeholder="120"
+                  placeholder="Valeur"
                   numeric
                   width="w-20"
                 />
@@ -1494,7 +1494,7 @@ export default function BilanVsav() {
                   value={form.C.pa_droite_dia}
                   onChange={(v) => updateField('C', 'pa_droite_dia', v)}
                   unit="mmHg"
-                  placeholder="80"
+                  placeholder="Valeur"
                   numeric
                   width="w-20"
                 />
@@ -1556,7 +1556,7 @@ export default function BilanVsav() {
                 <InputBox
                   value={form.D.pc_nombre}
                   onChange={(v) => updateField('D', 'pc_nombre', v)}
-                  placeholder="ex. 2"
+                  placeholder="Valeur"
                   numeric
                 />
               </div>
@@ -1629,7 +1629,7 @@ export default function BilanVsav() {
                 onChange={(v) => updateField('D', 'glycemie', v)}
                 abnormal={isAbnormalField('glycemie', form.D.glycemie)}
                 unit={form.D.glycemie ? detectGlycemieUnit(form.D.glycemie) : undefined}
-                placeholder="0,85 ou 85"
+                placeholder="Valeur"
                 numeric="decimal"
               />
               {!form.D.glycemie && (
@@ -1733,7 +1733,7 @@ export default function BilanVsav() {
                       value={form.BRULURE.brulure_etendue}
                       onChange={(v) => updateField('BRULURE', 'brulure_etendue', v)}
                       unit="% SC"
-                      placeholder="ex. 15"
+                      placeholder="Valeur"
                       numeric
                     />
                     <span className="text-xs text-neutral-600 italic">
