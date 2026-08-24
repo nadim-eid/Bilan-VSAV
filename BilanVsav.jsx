@@ -1216,8 +1216,11 @@ export default function BilanVsav() {
     if (!categorie || !rawValue) return null;
     const range = PATIENT_CATEGORIES[categorie]?.ranges[field];
     if (!range) return null;
-    const num = parseFloat(String(rawValue).replace(',', '.'));
+    let num = parseFloat(String(rawValue).replace(',', '.'));
     if (isNaN(num)) return null;
+    // La glycémie se note en g/L (ex. 0,85). Si quelqu'un tape par habitude en
+    // mg/dL (ex. 85), on convertit avant de comparer plutôt que de tout signaler hors norme.
+    if (field === 'glycemie' && num >= 15) num = num / 100;
     if (num < range[0]) return 'low';
     if (num > range[1]) return 'high';
     return null;
@@ -1611,6 +1614,7 @@ export default function BilanVsav() {
               onChange={(v) => updateField('D', 'glycemie', v)}
               abnormal={isAbnormalField('glycemie', form.D.glycemie)}
               unit="g/L"
+              placeholder="ex. 0,85"
               numeric="decimal"
             />
           </FieldCard>
