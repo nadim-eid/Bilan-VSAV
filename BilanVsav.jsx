@@ -230,6 +230,7 @@ const BREATH_SIGNS = [
   { value: 'toux', label: 'Toux' },
   { value: 'difficulte_parler', label: 'Difficulté à parler' },
   { value: 'paleur', label: 'Pâleur' },
+  { value: 'aucun', label: 'Pas de signe associé détecté' },
 ];
 
 const CIRC_SIGNS = [
@@ -241,6 +242,7 @@ const CIRC_SIGNS = [
   { value: 'anxiete', label: 'Anxiété / agitation' },
   { value: 'vertiges', label: 'Vertiges / malaise' },
   { value: 'douleur_thoracique', label: 'Douleur thoracique' },
+  { value: 'aucun', label: 'Pas de signe associé détecté' },
 ];
 
 const NEURO_SIGNS = [
@@ -249,6 +251,7 @@ const NEURO_SIGNS = [
   { value: 'fourmillements', label: 'Fourmillements' },
   { value: 'trouble_equilibre', label: "Trouble de l'équilibre" },
   { value: 'convulsions', label: 'Convulsions' },
+  { value: 'aucun', label: 'Pas de signe associé détecté' },
 ];
 
 const HEMORRAGIE_SITES = [
@@ -333,6 +336,15 @@ const PQRST_T_OPTIONS = [
 ];
 
 const optsToLabels = (opts) => Object.fromEntries(opts.map((o) => [o.value, o.label]));
+
+// Pour les multi-sélections avec une option "aucun/non détecté" : la cocher
+// efface les autres choix, et cocher un autre choix la retire automatiquement.
+function withExclusiveNone(current, next, noneValue) {
+  const justAddedNone = next.includes(noneValue) && !current.includes(noneValue);
+  if (justAddedNone) return [noneValue];
+  if (next.includes(noneValue) && next.length > 1) return next.filter((x) => x !== noneValue);
+  return next;
+}
 
 const FIELD_LABELS = {
   commentaire: 'Commentaire',
@@ -913,6 +925,85 @@ function SamplerField({ letter, label, value, onChange, choiceOptions, choiceVal
   );
 }
 
+// Version "pure" de la détection de valeur hors norme, réutilisable partout où on n'a
+// que les données enregistrées (pas l'état live du formulaire) — écran de récap, PDF/SMS,
+// et consultation de l'historique.
+function getAbnormalDirectionPure(data, field, rawValue) {
+  const categorie = data.TYPE && data.TYPE.categorie;
+  if (!categorie || !rawValue) return null;
+  const range = PATIENT_CATEGORIES[categorie]?.ranges[field];
+  if (!range) return null;
+  const num = field === 'glycemie' ? glycemieToGL(rawValue) : parseFloat(String(rawValue).replace(',', '.'));
+  if (isNaN(num)) return null;
+  if (num < range[0]) return 'low';
+  if (num > range[1]) return 'high';
+  return null;
+}
+
+// Calcule, pour chaque catégorie du bilan, si une détresse a été détectée — utilisé pour
+// le résumé en tête du récap ("Détresse X détectée" / "Pas de détresse détectée").
+function computeDetresseSummary(data) {
+  const results = [];
+  const hasReal = (arr, noneValue) => (arr || []).some((v) => v !== noneValue);
+
+  if (data.X.trauma === 'oui' || data.X.hemorragie === 'oui') {
+    results.push({ page: 'X', label: 'Trauma / hémorragie' });
+  }
+  if (data.A.obstruction === 'non') {
+    results.push({ page: 'A', label: 'Voies aériennes' });
+  }
+  if (
+    getAbnormalDirectionPure(data, 'fr', data.B.fr) !== null ||
+    getAbnormalDirectionPure(data, 'spo2', data.B.spo2) !== null ||
+    hasReal(data.B.fr_signes, 'aucun') ||
+    data.B.fr_ample === 'non' ||
+    data.B.fr_reguliere === 'non'
+  ) {
+    results.push({ page: 'B', label: 'Respiratoire' });
+  }
+  if (
+    getAbnormalDirectionPure(data, 'fc', data.C.fc) !== null ||
+    getAbnormalDirectionPure(data, 'pa_sys', data.C.pa_gauche_sys) !== null ||
+    getAbnormalDirectionPure(data, 'pa_sys', data.C.pa_droite_sys) !== null ||
+    data.C.pouls_sym === 'non' ||
+    data.C.pouls_frappe === 'non' ||
+    data.C.trc === '>2s' ||
+    hasReal(data.C.signes, 'aucun') ||
+    hasReal(data.C.blood_box, 'non_detecte')
+  ) {
+    results.push({ page: 'C', label: 'Circulatoire' });
+  }
+  if (
+    data.D.pci === 'oui' ||
+    data.D.pc_repete === 'oui' ||
+    (data.D.etat && data.D.etat !== 'A') ||
+    data.D.orientation === 'non' ||
+    hasReal(data.D.neuro_signes, 'aucun') ||
+    data.D.pupilles === 'non' ||
+    data.D.sens_mains === 'non' ||
+    data.D.sens_pieds === 'non' ||
+    getAbnormalDirectionPure(data, 'glycemie', data.D.glycemie) !== null
+  ) {
+    results.push({ page: 'D', label: 'Neurologique' });
+  }
+  if (
+    getAbnormalDirectionPure(data, 'temperature', data.E.temperature) !== null ||
+    data.E.victime_env === 'froid' ||
+    data.E.lesion === 'oui' ||
+    data.E.coince === 'oui'
+  ) {
+    results.push({ page: 'E', label: 'Exposition' });
+  }
+  if (data.BRULURE.brulure === 'oui') {
+    results.push({ page: 'BRULURE', label: 'Brûlure' });
+  }
+  if (data.FAST.face === 'oui' || data.FAST.arm === 'oui' || data.FAST.speech === 'oui') {
+    results.push({ page: 'FAST', label: 'FAST (AVC)' });
+  }
+
+  return results;
+}
+
 function getRawValue(page, field, data) {
   if (page === 'C' && field === 'pa_gauche') {
     const { pa_gauche_sys: sys, pa_gauche_dia: dia } = data.C;
@@ -953,6 +1044,13 @@ function formatPqrstEntry(entry, n) {
 // Construit le contenu texte du bilan (réutilisé pour le PDF et le SMS)
 function buildRecapLines(data) {
   const lines = [];
+  const summary = computeDetresseSummary(data);
+  if (summary.length === 0) {
+    lines.push('Pas de détresse détectée');
+  } else {
+    summary.forEach((s) => lines.push(`Détresse ${s.label} détectée`));
+  }
+  lines.push('');
   if (data.TYPE && data.TYPE.categorie) {
     lines.push(`Catégorie : ${PATIENT_CATEGORIES[data.TYPE.categorie].label}`);
   }
@@ -1118,6 +1216,32 @@ function RecapView({ data }) {
 
   return (
     <div className="flex flex-col gap-5">
+      {(() => {
+        const summary = computeDetresseSummary(data);
+        if (summary.length === 0) {
+          return (
+            <div
+              className="flex items-center gap-2 text-sm border-2 rounded-md px-3 py-2"
+              style={{ borderColor: '#065F46', backgroundColor: '#0B1F17', color: EMERALD }}
+            >
+              <Check size={16} /> Pas de détresse détectée
+            </div>
+          );
+        }
+        return (
+          <div className="flex flex-col gap-1.5">
+            {summary.map((s) => (
+              <div
+                key={s.page}
+                className="flex items-center gap-2 text-sm border-2 rounded-md px-3 py-2 font-semibold"
+                style={{ borderColor: AMBER, backgroundColor: '#1A1508' }}
+              >
+                <AlertTriangle size={16} style={{ color: AMBER }} /> Détresse {s.label} détectée
+              </div>
+            ))}
+          </div>
+        );
+      })()}
       {data.TYPE && (data.TYPE.categorie || data.TYPE.commentaire) && (
         <div className="flex flex-col gap-2">
           {data.TYPE.categorie && (
@@ -1392,11 +1516,29 @@ export default function BilanVsav() {
   }
 
   function getRespSignesCat() {
-    if (form.B.fr_signes.length === 0) return [];
+    if (form.B.fr_signes.filter((s) => s !== 'aucun').length === 0) return [];
     return catItem(
       'resp_signes',
       'Signes de détresse respiratoire',
       "Position d'attente : demi-assise. Oxygénothérapie si disponible, surveillance rapprochée, alerter le 15."
+    );
+  }
+
+  function getAmpleCat() {
+    if (form.B.fr_ample !== 'non') return [];
+    return catItem(
+      'fr_ample',
+      'Amplitude respiratoire anormale',
+      "Position d'attente : demi-assise. Surveiller étroitement, rechercher une détresse respiratoire, alerter le 15 si aggravation."
+    );
+  }
+
+  function getReguliereCat() {
+    if (form.B.fr_reguliere !== 'non') return [];
+    return catItem(
+      'fr_reguliere',
+      'Respiration irrégulière',
+      "Position d'attente : demi-assise. Surveiller étroitement, alerter le 15."
     );
   }
 
@@ -1434,7 +1576,7 @@ export default function BilanVsav() {
   }
 
   function getChocSignesCat() {
-    if (form.C.signes.length === 0) return [];
+    if (form.C.signes.filter((s) => s !== 'aucun').length === 0) return [];
     return catItem(
       'choc_signes',
       'Signes de choc',
@@ -1489,7 +1631,7 @@ export default function BilanVsav() {
   }
 
   function getNeuroSignesCat() {
-    if (form.D.neuro_signes.length === 0) return [];
+    if (form.D.neuro_signes.filter((s) => s !== 'aucun').length === 0) return [];
     return catItem(
       'neuro_signes',
       'Signes neurologiques associés',
@@ -1806,6 +1948,7 @@ export default function BilanVsav() {
               options={OUI_NON}
             />
           </FieldCard>
+          <InlineCatBox items={getAmpleCat()} />
           <FieldCard label="Respiration régulière" filled={!!form.B.fr_reguliere}>
             <ToggleGroup
               value={form.B.fr_reguliere}
@@ -1813,10 +1956,11 @@ export default function BilanVsav() {
               options={OUI_NON}
             />
           </FieldCard>
+          <InlineCatBox items={getReguliereCat()} />
           <FieldCard label="Signes associés" filled={form.B.fr_signes.length > 0}>
             <MultiToggleGroup
               value={form.B.fr_signes}
-              onChange={(v) => updateField('B', 'fr_signes', v)}
+              onChange={(v) => updateField('B', 'fr_signes', withExclusiveNone(form.B.fr_signes, v, 'aucun'))}
               options={BREATH_SIGNS}
             />
           </FieldCard>
@@ -1944,7 +2088,7 @@ export default function BilanVsav() {
           <FieldCard label="Signes associés" filled={form.C.signes.length > 0}>
             <MultiToggleGroup
               value={form.C.signes}
-              onChange={(v) => updateField('C', 'signes', v)}
+              onChange={(v) => updateField('C', 'signes', withExclusiveNone(form.C.signes, v, 'aucun'))}
               options={CIRC_SIGNS}
             />
           </FieldCard>
@@ -2043,7 +2187,7 @@ export default function BilanVsav() {
           <FieldCard label="Signes associés" filled={form.D.neuro_signes.length > 0}>
             <MultiToggleGroup
               value={form.D.neuro_signes}
-              onChange={(v) => updateField('D', 'neuro_signes', v)}
+              onChange={(v) => updateField('D', 'neuro_signes', withExclusiveNone(form.D.neuro_signes, v, 'aucun'))}
               options={NEURO_SIGNS}
             />
           </FieldCard>
@@ -2493,153 +2637,4 @@ export default function BilanVsav() {
             <History size={14} /> Historique{history.length > 0 ? ` (${history.length})` : ''}
           </button>
         </div>
-        <div className="flex gap-1">
-          {STEPS.map((s, i) => (
-            <button
-              key={s}
-              onClick={() => setStep(i)}
-              className="flex-1 h-1.5 rounded-full"
-              style={{ backgroundColor: i <= step ? ACCENT : '#292929' }}
-            />
-          ))}
-        </div>
-        <div className="text-xs text-neutral-500 -mt-1">
-          Étape {step + 1}/{STEPS.length} ·{' '}
-          <span className="text-neutral-100 font-semibold">
-            {PAGE_TITLES[STEPS[step]] || STEPS[step]}
-          </span>
-        </div>
-      </header>
-
-      <main ref={mainRef} className="flex-1 overflow-y-auto px-4 py-4">
-        <div key={step} className="step-fade flex flex-col gap-3">
-          {renderStepContent()}
-        </div>
-      </main>
-
-      <footer className="border-t border-neutral-800 px-4 py-3 flex gap-3 shrink-0">
-        {STEPS[step] !== 'RECAP' ? (
-          <>
-            <button
-              disabled={step === 0}
-              onClick={goPrev}
-              className="flex items-center gap-1 px-4 py-2.5 rounded-md border border-neutral-800 text-neutral-300 disabled:opacity-30"
-            >
-              <ChevronLeft size={16} /> Précédent
-            </button>
-            <button
-              onClick={goNext}
-              style={{ backgroundColor: ACCENT }}
-              className="flex-1 flex items-center justify-center gap-1 px-4 py-2.5 rounded-md text-white font-semibold"
-            >
-              Suivant <ChevronRight size={16} />
-            </button>
-          </>
-        ) : (
-          <div className="flex flex-col gap-2 w-full">
-            <div className="flex gap-3">
-              <button
-                onClick={goPrev}
-                className="flex items-center gap-1 px-4 py-2.5 rounded-md border border-neutral-800 text-neutral-300"
-              >
-                <ChevronLeft size={16} /> Modifier
-              </button>
-              <button
-                onClick={newBilan}
-                className="flex-1 flex items-center justify-center gap-1 px-4 py-2.5 rounded-md border border-neutral-800 text-neutral-300"
-              >
-                <RotateCcw size={16} /> Nouveau bilan
-              </button>
-            </div>
-            {!saved && (
-              <button
-                onClick={saveBilan}
-                style={{ backgroundColor: ACCENT }}
-                className="w-full flex items-center justify-center gap-1 px-4 py-2.5 rounded-md text-white font-semibold"
-              >
-                <Save size={16} /> Enregistrer le bilan
-              </button>
-            )}
-          </div>
-        )}
-      </footer>
-
-      {showHistory && (
-        <div
-          className="fixed inset-0 flex items-end sm:items-center sm:justify-center z-50"
-          style={{ backgroundColor: 'rgba(0,0,0,0.7)' }}
-          onClick={() => {
-            setShowHistory(false);
-            setViewing(null);
-          }}
-        >
-          <div
-            onClick={(e) => e.stopPropagation()}
-            className="bg-neutral-950 border border-neutral-800 rounded-t-2xl sm:rounded-2xl w-full sm:max-w-lg overflow-y-auto p-4"
-            style={{ maxHeight: '85vh' }}
-          >
-            {!viewing ? (
-              <>
-                <div className="flex items-center justify-between mb-3">
-                  <h2 className="font-bold text-lg" style={{ fontFamily: "'Barlow Condensed', sans-serif" }}>
-                    Historique des bilans
-                  </h2>
-                  <div className="flex items-center gap-3">
-                    {history.length > 0 && (
-                      <button
-                        onClick={clearHistory}
-                        className="flex items-center gap-1 text-xs text-red-400 border border-neutral-800 rounded-md px-2 py-1 hover:border-red-800"
-                      >
-                        <Trash2 size={13} /> Effacer
-                      </button>
-                    )}
-                    <button onClick={() => setShowHistory(false)}>
-                      <X size={18} />
-                    </button>
-                  </div>
-                </div>
-                {loadingHistory ? (
-                  <p className="text-neutral-500 text-sm">Chargement…</p>
-                ) : history.length === 0 ? (
-                  <p className="text-neutral-500 text-sm">Aucun bilan enregistré.</p>
-                ) : (
-                  <div className="flex flex-col gap-2">
-                    {history.map((rec) => (
-                      <button
-                        key={rec.id}
-                        onClick={() => setViewing(rec)}
-                        className="text-left bg-neutral-900 border border-neutral-800 rounded-md px-3 py-2.5 flex items-center justify-between hover:border-neutral-600"
-                      >
-                        <span className="font-semibold text-sm">Bilan n°{rec.patientNum}</span>
-                        <span className="text-xs text-neutral-500" style={{ fontFamily: "'IBM Plex Mono', monospace" }}>
-                          {rec.date} · {rec.heure}
-                        </span>
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </>
-            ) : (
-              <>
-                <div className="flex items-center justify-between mb-3">
-                  <div>
-                    <h2 className="font-bold text-lg" style={{ fontFamily: "'Barlow Condensed', sans-serif" }}>
-                      Bilan n°{viewing.patientNum}
-                    </h2>
-                    <p className="text-xs text-neutral-500" style={{ fontFamily: "'IBM Plex Mono', monospace" }}>
-                      {viewing.date} · {viewing.heure}
-                    </p>
-                  </div>
-                  <button onClick={() => setViewing(null)}>
-                    <ChevronLeft size={18} />
-                  </button>
-                </div>
-                <RecapView data={viewing.data} />
-              </>
-            )}
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
+        <div className="flex gap-1"
