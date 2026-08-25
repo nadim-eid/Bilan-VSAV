@@ -209,6 +209,17 @@ const BLOOD_BOX_OPTIONS = [
   { value: 'non_detecte', label: 'Non détecté' },
 ];
 
+const COINCE_ZONE_OPTIONS = [
+  { value: 'jambe', label: 'Jambe' },
+  { value: 'bras', label: 'Bras' },
+  { value: 'bassin', label: 'Bassin' },
+  { value: 'thorax', label: 'Thorax' },
+  { value: 'pied', label: 'Pied' },
+  { value: 'main', label: 'Main' },
+  { value: 'tete', label: 'Tête' },
+  { value: 'autre', label: 'Autre' },
+];
+
 const BREATH_SIGNS = [
   { value: 'battement_ailes_nez', label: 'Battement des ailes du nez' },
   { value: 'balancement_thoraco_abdo', label: 'Balancement thoraco-abdominal' },
@@ -328,6 +339,8 @@ const FIELD_LABELS = {
   trauma: 'Victime traumatisée',
   obstruction: 'Liberté des voies aériennes',
   fr: 'Fréquence respiratoire',
+  fr_ample: 'Amplitude ample',
+  fr_reguliere: 'Respiration régulière',
   fr_signes: 'Signes associés',
   spo2: 'SpO2 (SAT)',
   spo2_mode: 'Mode SpO2',
@@ -341,6 +354,8 @@ const FIELD_LABELS = {
   blood_box: 'Blood box — hémorragie interne suspectée',
   hemorragie: 'Hémorragie',
   hemorragie_sites: 'Localisation(s) hémorragie',
+  garrot_pose: 'Pose garrot',
+  garrot_heure: 'Heure de pose du garrot',
   pci: 'PCI',
   pc_repete: 'PC à répétition',
   pc_nombre: 'Nombre de fois',
@@ -361,6 +376,10 @@ const FIELD_LABELS = {
   brulure_loc: 'Localisation brûlure (détail)',
   brulure_type: 'Type de brûlure',
   lesion: 'Lésion cachée',
+  coince: 'Victime coincée / comprimée',
+  coince_depuis: 'Depuis',
+  coince_zone_choices: 'Membre / zone coincé(e)',
+  coince_zone: 'Membre / zone (détail)',
   face: 'Face',
   arm: 'Arm (bras)',
   speech: 'Speech (parole)',
@@ -379,12 +398,12 @@ const FIELD_LABELS = {
 
 const PAGE_FIELDS = {
   TYPE: ['commentaire'],
-  X: ['trauma', 'hemorragie', 'hemorragie_sites'],
+  X: ['trauma', 'hemorragie', 'hemorragie_sites', 'garrot_pose', 'garrot_heure'],
   A: ['obstruction'],
-  B: ['fr', 'fr_signes', 'spo2', 'spo2_mode'],
+  B: ['fr', 'fr_ample', 'fr_reguliere', 'fr_signes', 'spo2', 'spo2_mode'],
   C: ['fc', 'pa_gauche', 'pa_droite', 'pouls_sym', 'pouls_frappe', 'trc', 'signes', 'blood_box'],
   D: ['pci', 'pc_repete', 'pc_nombre', 'etat', 'orientation', 'neuro_signes', 'pupilles', 'sens_mains', 'sens_pieds', 'glycemie'],
-  E: ['temperature', 'victime_env', 'lesion'],
+  E: ['temperature', 'victime_env', 'lesion', 'coince', 'coince_depuis', 'coince_zone_choices', 'coince_zone'],
   BRULURE: ['brulure', 'brulure_degre', 'brulure_type', 'brulure_zones', 'brulure_etendue', 'brulure_loc_choices', 'brulure_loc'],
   FAST: ['face', 'arm', 'speech', 'temps'],
   SAMPLER: [
@@ -446,6 +465,9 @@ const VALUE_LABELS = {
   blood_box: optsToLabels(BLOOD_BOX_OPTIONS),
   brulure_loc_choices: optsToLabels(BRULURE_LOC_OPTIONS),
   hemorragie: optsToLabels(OUI_NON),
+  garrot_pose: optsToLabels(OUI_NON),
+  fr_ample: optsToLabels(OUI_NON),
+  fr_reguliere: optsToLabels(OUI_NON),
   hemorragie_sites: optsToLabels(HEMORRAGIE_SITES),
   pci: optsToLabels(OUI_NON),
   pc_repete: optsToLabels(OUI_NON),
@@ -462,6 +484,8 @@ const VALUE_LABELS = {
   sens_pieds: optsToLabels(OUI_NON),
   victime_env: optsToLabels(ENV_OPTIONS),
   lesion: optsToLabels(OUI_NON),
+  coince: optsToLabels(OUI_NON),
+  coince_zone_choices: optsToLabels(COINCE_ZONE_OPTIONS),
   face: optsToLabels(OUI_NON),
   arm: optsToLabels(OUI_NON),
   speech: optsToLabels(OUI_NON),
@@ -488,9 +512,15 @@ function formatValue(field, value) {
 
 const initialForm = () => ({
   TYPE: { categorie: '', commentaire: '' },
-  X: { trauma: '', hemorragie: '', hemorragie_sites: [] },
+  X: {
+    trauma: '',
+    hemorragie: '',
+    hemorragie_sites: [],
+    garrot_pose: '',
+    garrot_heure: '',
+  },
   A: { obstruction: '' },
-  B: { fr: '', fr_signes: [], spo2: '', spo2_mode: '' },
+  B: { fr: '', fr_ample: '', fr_reguliere: '', fr_signes: [], spo2: '', spo2_mode: '' },
   C: {
     fc: '',
     pa_gauche_sys: '',
@@ -515,7 +545,15 @@ const initialForm = () => ({
     sens_pieds: '',
     glycemie: '',
   },
-  E: { temperature: '', victime_env: '', lesion: '' },
+  E: {
+    temperature: '',
+    victime_env: '',
+    lesion: '',
+    coince: '',
+    coince_depuis: '',
+    coince_zone_choices: [],
+    coince_zone: '',
+  },
   BRULURE: {
     brulure: '',
     brulure_degre: '',
@@ -1496,6 +1534,15 @@ export default function BilanVsav() {
     );
   }
 
+  function getCoinceCat() {
+    if (form.E.coince !== 'oui') return [];
+    return catItem(
+      'coince',
+      'Victime coincée / comprimée',
+      'Ne pas dégager précipitamment si compression prolongée (risque de syndrome de revascularisation à la levée de la compression), alerter le 15, coordonner la désincarcération avec les secours.'
+    );
+  }
+
   function getBruleInitialCat() {
     if (form.BRULURE.brulure !== 'oui') return [];
     return catItem('brulure_initial', BURN_INITIAL_CAT.title, BURN_INITIAL_CAT.message);
@@ -1658,7 +1705,11 @@ export default function BilanVsav() {
                 value={form.X.hemorragie}
                 onChange={(v) => {
                   updateField('X', 'hemorragie', v);
-                  if (v !== 'oui') updateField('X', 'hemorragie_sites', []);
+                  if (v !== 'oui') {
+                    updateField('X', 'hemorragie_sites', []);
+                    updateField('X', 'garrot_pose', '');
+                    updateField('X', 'garrot_heure', '');
+                  }
                 }}
                 options={OUI_NON}
               />
@@ -1672,6 +1723,38 @@ export default function BilanVsav() {
                     onChange={(v) => updateField('X', 'hemorragie_sites', v)}
                     options={HEMORRAGIE_SITES}
                   />
+                </div>
+              )}
+              {form.X.hemorragie === 'oui' && (
+                <div className="flex flex-col gap-1.5 pt-2 border-t border-neutral-800">
+                  <span className="text-xs text-neutral-500 uppercase tracking-wide">Pose garrot</span>
+                  <ToggleGroup
+                    value={form.X.garrot_pose}
+                    onChange={(v) => {
+                      updateField('X', 'garrot_pose', v);
+                      if (v === 'oui' && !form.X.garrot_heure) {
+                        const now = new Date();
+                        const hh = String(now.getHours()).padStart(2, '0');
+                        const mm = String(now.getMinutes()).padStart(2, '0');
+                        updateField('X', 'garrot_heure', `${hh}:${mm}`);
+                      }
+                      if (v !== 'oui') updateField('X', 'garrot_heure', '');
+                    }}
+                    options={OUI_NON}
+                  />
+                  {form.X.garrot_pose === 'oui' && (
+                    <div className="flex flex-col gap-1.5 pt-2">
+                      <span className="text-xs text-neutral-500 uppercase tracking-wide">
+                        Heure de pose (capturée automatiquement, modifiable)
+                      </span>
+                      <InputBox
+                        value={form.X.garrot_heure}
+                        onChange={(v) => updateField('X', 'garrot_heure', v)}
+                        placeholder="hh:mm"
+                        width="w-28"
+                      />
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -1708,6 +1791,20 @@ export default function BilanVsav() {
             </div>
           </FieldCard>
           <InlineCatBox items={getSimpleCat('fr', form.B.fr)} />
+          <FieldCard label="Amplitude ample" filled={!!form.B.fr_ample}>
+            <ToggleGroup
+              value={form.B.fr_ample}
+              onChange={(v) => updateField('B', 'fr_ample', v)}
+              options={OUI_NON}
+            />
+          </FieldCard>
+          <FieldCard label="Respiration régulière" filled={!!form.B.fr_reguliere}>
+            <ToggleGroup
+              value={form.B.fr_reguliere}
+              onChange={(v) => updateField('B', 'fr_reguliere', v)}
+              options={OUI_NON}
+            />
+          </FieldCard>
           <FieldCard label="Signes associés" filled={form.B.fr_signes.length > 0}>
             <MultiToggleGroup
               value={form.B.fr_signes}
@@ -2017,6 +2114,51 @@ export default function BilanVsav() {
             />
           </FieldCard>
           <InlineCatBox items={getLesionCat()} />
+          <FieldCard label="Victime coincée / comprimée" filled={!!form.E.coince}>
+            <ToggleGroup
+              value={form.E.coince}
+              onChange={(v) => {
+                updateField('E', 'coince', v);
+                if (v !== 'oui') {
+                  updateField('E', 'coince_depuis', '');
+                  updateField('E', 'coince_zone_choices', []);
+                  updateField('E', 'coince_zone', '');
+                }
+              }}
+              options={OUI_NON}
+            />
+          </FieldCard>
+          <InlineCatBox items={getCoinceCat()} />
+          {form.E.coince === 'oui' && (
+            <>
+              <FieldCard label="Depuis" filled={!!form.E.coince_depuis}>
+                <InputBox
+                  value={form.E.coince_depuis}
+                  onChange={(v) => updateField('E', 'coince_depuis', v)}
+                  placeholder="ex. 1h30"
+                  width="w-28"
+                />
+              </FieldCard>
+              <FieldCard
+                label="Membre / zone"
+                filled={form.E.coince_zone_choices.length > 0 || !!form.E.coince_zone}
+              >
+                <div className="flex flex-col gap-2">
+                  <MultiToggleGroup
+                    value={form.E.coince_zone_choices}
+                    onChange={(v) => updateField('E', 'coince_zone_choices', v)}
+                    options={COINCE_ZONE_OPTIONS}
+                  />
+                  <InputBox
+                    value={form.E.coince_zone}
+                    onChange={(v) => updateField('E', 'coince_zone', v)}
+                    placeholder="Précision si besoin"
+                    width="w-full"
+                  />
+                </div>
+              </FieldCard>
+            </>
+          )}
         </>
       );
     if (s === 'BRULURE')
