@@ -71,27 +71,27 @@ const PATIENT_CATEGORIES = {
 // Conduites à tenir proposées lorsqu'une valeur sort de la plage normale
 const CAT_MESSAGES = {
   spo2: {
-    low: { title: 'SpO2 basse', message: 'Mettre la victime sous oxygène (O2) et réévaluer la SpO2.' },
+    low: { title: 'SpO2 basse', message: "Position d'attente : demi-assise si possible. Mettre sous oxygène (O2), réévaluer la SpO2." },
   },
   fr: {
-    low: { title: 'Fréquence respiratoire basse', message: 'Surveiller étroitement, être prêt à assister la ventilation.' },
-    high: { title: 'Fréquence respiratoire élevée', message: 'Rechercher une détresse respiratoire, position demi-assise, alerter le 15.' },
+    low: { title: 'Fréquence respiratoire basse', message: "Position d'attente : allongée, tête en légère extension si pas de trauma. Surveiller étroitement, être prêt à assister la ventilation." },
+    high: { title: 'Fréquence respiratoire élevée', message: "Position d'attente : demi-assise. Rechercher une détresse respiratoire, alerter le 15." },
   },
   fc: {
-    low: { title: 'Fréquence cardiaque basse', message: 'Surveillance rapprochée, alerter le médecin régulateur (15).' },
-    high: { title: 'Fréquence cardiaque élevée', message: 'Surveillance rapprochée, alerter le médecin régulateur (15).' },
+    low: { title: 'Fréquence cardiaque basse', message: "Position d'attente : allongée, au calme. Surveillance rapprochée, alerter le médecin régulateur (15)." },
+    high: { title: 'Fréquence cardiaque élevée', message: "Position d'attente : demi-assise, au calme. Surveillance rapprochée, alerter le médecin régulateur (15)." },
   },
   pa_sys: {
-    low: { title: 'Tension basse', message: "Position d'attente, jambes surélevées si pas de contre-indication, alerter le 15." },
-    high: { title: 'Tension élevée', message: 'Position demi-assise, surveillance, alerter le 15 si signes associés.' },
+    low: { title: 'Tension basse', message: "Position d'attente : allongée, jambes surélevées si pas de contre-indication. Alerter le 15." },
+    high: { title: 'Tension élevée', message: "Position d'attente : demi-assise. Surveillance, alerter le 15 si signes associés." },
   },
   temperature: {
-    low: { title: 'Hypothermie', message: 'Réchauffer la victime (couverture, isolation du sol), retirer les vêtements mouillés.' },
-    high: { title: 'Fièvre', message: 'Découvrir la victime, hydrater si consciente, surveiller la température.' },
+    low: { title: 'Hypothermie', message: "Position d'attente : allongée, isolée du sol. Réchauffer (couverture), retirer les vêtements mouillés." },
+    high: { title: 'Fièvre', message: "Position d'attente : allongée, au repos. Découvrir la victime, hydrater si consciente, surveiller la température." },
   },
   glycemie: {
-    low: { title: 'Hypoglycémie suspectée', message: 'Resucrage par voie orale si la victime est consciente et peut déglutir.' },
-    high: { title: 'Hyperglycémie suspectée', message: 'Surveillance, alerter le médecin régulateur.' },
+    low: { title: 'Hypoglycémie suspectée', message: "Position d'attente : allongée. Resucrage par voie orale si la victime est consciente et peut déglutir." },
+    high: { title: 'Hyperglycémie suspectée', message: "Position d'attente : allongée, au repos. Surveillance, alerter le médecin régulateur." },
   },
 };
 
@@ -99,49 +99,49 @@ const CAT_MESSAGES = {
 const BURN_CAT_BY_TYPE = {
   thermique: {
     title: 'Brûlure thermique',
-    message: "Refroidir immédiatement à l'eau tempérée (15-20 °C) pendant 15-20 min si moins de 2h, ne pas percer les phlyctènes, couvrir d'un pansement stérile, alerter le 15.",
+    message: "Position d'attente : assise ou allongée, selon confort. Refroidir immédiatement à l'eau tempérée (15-20 °C) pendant 15-20 min si moins de 2h, ne pas percer les phlyctènes, couvrir d'un pansement stérile, alerter le 15.",
   },
   electrique: {
     title: 'Brûlure électrique',
-    message: "Ne pas toucher la victime avant coupure du courant, rechercher les points d'entrée et de sortie, surveiller (risque de trouble du rythme cardiaque), alerter le 15 systématiquement.",
+    message: "Position d'attente : allongée, surveillance rapprochée. Ne pas toucher la victime avant coupure du courant, rechercher les points d'entrée et de sortie, surveiller (risque de trouble du rythme cardiaque), alerter le 15 systématiquement.",
   },
   chimique: {
     title: 'Brûlure chimique',
-    message: "Retirer les vêtements contaminés, rincer abondamment à l'eau claire pendant au moins 20 min (sauf produit réagissant à l'eau), ne pas neutraliser le produit, alerter le 15.",
+    message: "Position d'attente : assise ou allongée. Retirer les vêtements contaminés, rincer abondamment à l'eau claire pendant au moins 20 min (sauf produit réagissant à l'eau), ne pas neutraliser le produit, alerter le 15.",
   },
   radiologique: {
     title: 'Brûlure radiologique',
-    message: 'Éloigner la victime de la source si possible sans se mettre en danger, alerter le 15 et les services spécialisés, ne pas toucher sans protection adaptée.',
+    message: "Position d'attente : à distance de la source. Éloigner la victime de la source si possible sans se mettre en danger, alerter le 15 et les services spécialisés, ne pas toucher sans protection adaptée.",
   },
 };
 const BURN_CAT_DEFAULT = {
   title: 'Brûlure',
-  message: "Refroidir à l'eau tempérée (15-20 °C) pendant 15-20 min si moins de 2h, ne pas percer les phlyctènes, couvrir d'un pansement stérile, alerter le 15.",
+  message: "Position d'attente : assise ou allongée, selon confort. Refroidir à l'eau tempérée (15-20 °C) pendant 15-20 min si moins de 2h, ne pas percer les phlyctènes, couvrir d'un pansement stérile, alerter le 15.",
 };
 
 // Message immédiat dès que "Brûlure = Oui" est coché, avant même le degré/type
 const BURN_INITIAL_CAT = {
   title: 'Brûlure confirmée',
-  message: "Écarter la victime de la source, refroidir immédiatement à l'eau tempérée si moins de 15 min depuis l'accident.",
+  message: "Position d'attente : écarter la victime de la source. Refroidir immédiatement à l'eau tempérée si moins de 15 min depuis l'accident.",
 };
 
 // Conduites à tenir spécifiques selon le degré de la brûlure
 const BURN_CAT_BY_DEGREE = {
   '1': {
     title: '1er degré',
-    message: "Brûlure superficielle : refroidir à l'eau tempérée 15-20 min, pas de pansement nécessaire si peu étendue.",
+    message: "Position d'attente : assise ou allongée, selon confort. Brûlure superficielle : refroidir à l'eau tempérée 15-20 min, pas de pansement nécessaire si peu étendue.",
   },
   '2s': {
     title: '2e degré superficiel',
-    message: 'Phlyctènes possibles : ne pas les percer, refroidir, couvrir d\u2019un pansement stérile non adhérent.',
+    message: 'Position d\u2019attente : assise ou allongée, selon confort. Phlyctènes possibles : ne pas les percer, refroidir, couvrir d\u2019un pansement stérile non adhérent.',
   },
   '2p': {
     title: '2e degré profond',
-    message: 'Risque cicatriciel et infectieux : ne pas percer les phlyctènes, pansement stérile, avis médical recommandé.',
+    message: 'Position d\u2019attente : allongée. Risque cicatriciel et infectieux : ne pas percer les phlyctènes, pansement stérile, avis médical recommandé.',
   },
   '3': {
     title: '3e degré',
-    message: 'Brûlure grave : ne pas refroidir de façon prolongée (risque d\u2019hypothermie), couvrir avec un linge propre/stérile, alerter le 15 en urgence.',
+    message: 'Position d\u2019attente : allongée, isolée du sol. Brûlure grave : ne pas refroidir de façon prolongée (risque d\u2019hypothermie), couvrir avec un linge propre/stérile, alerter le 15 en urgence.',
   },
 };
 
@@ -1369,7 +1369,7 @@ export default function BilanVsav() {
     return catItem(
       'trauma',
       'Victime traumatisée',
-      'Maintien de la tête (ne pas mobiliser le rachis), pose d\u2019un collier cervical si disponible. Position : allongée en rectitude, ne pas laisser la victime bouger, alerter le 15.'
+      'Position d\u2019attente : allongée en rectitude, ne pas laisser la victime bouger. Maintien de la tête (ne pas mobiliser le rachis), pose d\u2019un collier cervical si disponible, alerter le 15.'
     );
   }
 
@@ -1378,7 +1378,7 @@ export default function BilanVsav() {
     return catItem(
       'hemorragie',
       'Hémorragie',
-      'Compression manuelle directe sur la plaie (ou garrot si hémorragie massive incontrôlable). Position : allongée sur le dos, jambes légèrement surélevées si pas de contre-indication. Couvrir pour prévenir l\u2019hypothermie, oxygénothérapie si disponible, alerter le 15.'
+      'Position d\u2019attente : allongée sur le dos, jambes légèrement surélevées si pas de contre-indication. Compression manuelle directe sur la plaie (ou garrot si hémorragie massive incontrôlable), couvrir pour prévenir l\u2019hypothermie, oxygénothérapie si disponible, alerter le 15.'
     );
   }
 
@@ -1396,7 +1396,7 @@ export default function BilanVsav() {
     return catItem(
       'resp_signes',
       'Signes de détresse respiratoire',
-      'Position demi-assise, oxygénothérapie si disponible, surveillance rapprochée, alerter le 15.'
+      "Position d'attente : demi-assise. Oxygénothérapie si disponible, surveillance rapprochée, alerter le 15."
     );
   }
 
@@ -1411,7 +1411,7 @@ export default function BilanVsav() {
     return catItem(
       'pouls_asym',
       'Pouls asymétrique',
-      "Suspicion d'atteinte vasculaire : ne pas mobiliser le membre concerné, alerter le 15."
+      "Position d'attente : allongée, ne pas mobiliser le membre concerné. Suspicion d'atteinte vasculaire, alerter le 15."
     );
   }
 
@@ -1448,7 +1448,7 @@ export default function BilanVsav() {
     return catItem(
       'blood_box',
       'Suspicion d\u2019hémorragie interne',
-      'Alerter le 15 en urgence, transport médicalisé prioritaire, ne pas mobiliser inutilement, surveiller étroitement les signes de choc.'
+      'Position d\u2019attente : allongée, ne pas mobiliser inutilement. Alerter le 15 en urgence, transport médicalisé prioritaire, surveiller étroitement les signes de choc.'
     );
   }
 
@@ -1457,7 +1457,7 @@ export default function BilanVsav() {
     return catItem(
       'pci',
       'Perte de connaissance',
-      'PLS si respiration spontanée et pas de trauma suspecté (sinon maintien tête), surveillance rapprochée, alerter le 15.'
+      'Position d\u2019attente : PLS si respiration spontanée et pas de trauma suspecté (sinon maintien tête). Surveillance rapprochée, alerter le 15.'
     );
   }
 
@@ -1466,7 +1466,7 @@ export default function BilanVsav() {
     return catItem(
       'pc_repete',
       'Pertes de connaissance répétées',
-      'Alerter le 15, transport médicalisé à prévoir, surveiller étroitement.'
+      'Position d\u2019attente : allongée, en sécurité. Alerter le 15, transport médicalisé à prévoir, surveiller étroitement.'
     );
   }
 
@@ -1475,7 +1475,7 @@ export default function BilanVsav() {
     return catItem(
       'etat_conscience',
       'Trouble de la conscience',
-      'PLS si respiration spontanée et pas de trauma suspecté, surveillance rapprochée, alerter le 15.'
+      'Position d\u2019attente : PLS si respiration spontanée et pas de trauma suspecté. Surveillance rapprochée, alerter le 15.'
     );
   }
 
@@ -1484,7 +1484,7 @@ export default function BilanVsav() {
     return catItem(
       'orientation',
       "Trouble de l'orientation",
-      'Surveillance neurologique rapprochée, alerter le 15.'
+      "Position d'attente : allongée, au calme. Surveillance neurologique rapprochée, alerter le 15."
     );
   }
 
@@ -1493,7 +1493,7 @@ export default function BilanVsav() {
     return catItem(
       'neuro_signes',
       'Signes neurologiques associés',
-      'Surveillance neurologique rapprochée, alerter le 15.'
+      "Position d'attente : allongée, au calme. Surveillance neurologique rapprochée, alerter le 15."
     );
   }
 
@@ -1502,18 +1502,26 @@ export default function BilanVsav() {
     return catItem(
       'pupilles',
       'Anomalie pupillaire',
-      "Suspicion d'atteinte neurologique : alerter le 15 en urgence."
+      "Position d'attente : allongée. Suspicion d'atteinte neurologique, alerter le 15 en urgence."
     );
   }
 
   function getSensMainsCat() {
     if (form.D.sens_mains !== 'non') return [];
-    return catItem('sens_mains', 'Déficit sensitivo-moteur (mains)', 'Ne pas mobiliser, immobiliser, alerter le 15.');
+    return catItem(
+      'sens_mains',
+      'Déficit sensitivo-moteur (mains)',
+      "Position d'attente : ne pas mobiliser le membre, immobiliser. Alerter le 15."
+    );
   }
 
   function getSensPiedsCat() {
     if (form.D.sens_pieds !== 'non') return [];
-    return catItem('sens_pieds', 'Déficit sensitivo-moteur (pieds)', 'Ne pas mobiliser, immobiliser, alerter le 15.');
+    return catItem(
+      'sens_pieds',
+      'Déficit sensitivo-moteur (pieds)',
+      "Position d'attente : ne pas mobiliser le membre, immobiliser. Alerter le 15."
+    );
   }
 
   function getVictimeFroidCat() {
@@ -1530,7 +1538,7 @@ export default function BilanVsav() {
     return catItem(
       'lesion_cachee',
       'Lésion cachée détectée',
-      'Réexaminer entièrement la victime, couvrir/protéger la zone, alerter le 15 si nécessaire.'
+      "Position d'attente : allongée. Réexaminer entièrement la victime, couvrir/protéger la zone, alerter le 15 si nécessaire."
     );
   }
 
@@ -1539,7 +1547,7 @@ export default function BilanVsav() {
     return catItem(
       'coince',
       'Victime coincée / comprimée',
-      'Ne pas dégager précipitamment si compression prolongée (risque de syndrome de revascularisation à la levée de la compression), alerter le 15, coordonner la désincarcération avec les secours.'
+      'Position d\u2019attente : ne pas dégager précipitamment si compression prolongée (risque de syndrome de revascularisation à la levée de la compression). Alerter le 15, coordonner la désincarcération avec les secours.'
     );
   }
 
@@ -1575,7 +1583,7 @@ export default function BilanVsav() {
     return catItem(
       'fast_positif',
       'Signe FAST positif — suspicion AVC',
-      "Noter précisément l'heure d'apparition des signes, alerter le 15 en urgence, ne rien donner par voie orale."
+      "Position d'attente : demi-assise ou position confortable, ne pas laisser seul. Noter précisément l'heure d'apparition des signes, alerter le 15 en urgence, ne rien donner par voie orale."
     );
 
   }
@@ -2619,19 +2627,4 @@ export default function BilanVsav() {
                       Bilan n°{viewing.patientNum}
                     </h2>
                     <p className="text-xs text-neutral-500" style={{ fontFamily: "'IBM Plex Mono', monospace" }}>
-                      {viewing.date} · {viewing.heure}
-                    </p>
-                  </div>
-                  <button onClick={() => setViewing(null)}>
-                    <ChevronLeft size={18} />
-                  </button>
-                </div>
-                <RecapView data={viewing.data} />
-              </>
-            )}
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
+                      {viewing.date} · {vi
